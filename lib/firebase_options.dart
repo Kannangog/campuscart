@@ -33,7 +33,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBrGF1qf0d5XK0Vn9TJAFg-ncG-ZrApzGQ',
-    appId: '1:814733677259:web:your-web-app-id', // You need to get this from Firebase Console
+    appId: '1:814733677259:web:f6eeef48566539b9b5814e',
     messagingSenderId: '814733677259',
     projectId: 'campuscart-23e57',
     authDomain: 'campuscart-23e57.firebaseapp.com',
@@ -42,7 +42,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBrGF1qf0d5XK0Vn9TJAFg-ncG-ZrApzGQ',
-    appId: '1:814733677259:android:your-android-app-id', // You need to get this from Firebase Console
+    appId: '1:814733677259:android:f6eeef48566539b9b5814e',
     messagingSenderId: '814733677259',
     projectId: 'campuscart-23e57',
     storageBucket: 'campuscart-23e57.appspot.com',
@@ -50,7 +50,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBrGF1qf0d5XK0Vn9TJAFg-ncG-ZrApzGQ',
-    appId: '1:814733677259:ios:your-ios-app-id', // You need to get this from Firebase Console
+    appId: '1:814733677259:ios:f6eeef48566539b9b5814e',
     messagingSenderId: '814733677259',
     projectId: 'campuscart-23e57',
     storageBucket: 'campuscart-23e57.appspot.com',
@@ -59,7 +59,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBrGF1qf0d5XK0Vn9TJAFg-ncG-ZrApzGQ',
-    appId: '1:814733677259:ios:your-ios-app-id',
+    appId: '1:814733677259:ios:f6eeef48566539b9b5814e',
     messagingSenderId: '814733677259',
     projectId: 'campuscart-23e57',
     storageBucket: 'campuscart-23e57.appspot.com',

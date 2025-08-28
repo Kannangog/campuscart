@@ -1,26 +1,44 @@
 {
   "project_info": {
-    "project_number": "814733677259",
-    "project_id": "campuscart-23e57",
-    "storage_bucket": "campuscart-23e57.firebasestorage.app"
+    "project_number": "410781365676",
+    "project_id": "campuscart-9ba31",
+    "storage_bucket": "campuscart-9ba31.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:814733677259:android:f6eeef48566539b9b5814e",
+        "mobilesdk_app_id": "1:410781365676:android:f5f54b3976122a795a3609",
         "android_client_info": {
-          "package_name": "com.example.campuscart"
+          "package_name": "com.kannan.campuscart"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "410781365676-i9giphjppkpnf219a64qbbbi1nldhs19.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kannan.campuscart",
+            "certificate_hash": "94a7111934b026a3fbaab608ed1e499020d9c9f5"
+          }
+        },
+        {
+          "client_id": "410781365676-p6mk7dn0cfjepjja2tami8o3qc9j9q1k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyBrGF1qf0d5XK0Vn9TJAFg-ncG-ZrApzGQ"
+          "current_key": "AIzaSyAXXRVMBSZYZjnJ0vBt_8SWnf7q013AxyI"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "410781365676-p6mk7dn0cfjepjja2tami8o3qc9j9q1k.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

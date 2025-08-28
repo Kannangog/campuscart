@@ -1,11 +1,6 @@
-import 'package:campuscart/screens/admin/admin_dashboard.dart';
-import 'package:campuscart/screens/admin/restaurant_approvals_screen.dart';
-import 'package:campuscart/screens/admin/users_management_screen.dart';
-import 'package:campuscart/screens/restaurant/restaurant_dashboard.dart';
-import 'package:campuscart/screens/user/home_screen.dart';
-import 'package:campuscart/screens/user/user_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/auth/auth_wrapper.dart';
@@ -75,7 +70,7 @@ class MyApp extends StatelessWidget {
           fillColor: Colors.grey.shade50,
         ),
       ),
-  home: const RestaurantDashboard(),
+  home: const AuthWrapper(),
 );
   }
 }

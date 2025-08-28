@@ -28,15 +28,32 @@ class UserModel {
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data();
+    
+    // Debug print to see what we're actually getting
+    print('Firestore data type: ${data.runtimeType}');
+    print('Firestore data: $data');
+    
+    // Handle the case where data might be a List or other unexpected type
+    if (data is! Map<String, dynamic>) {
+      print('Unexpected data type received from Firestore');
+      // Return a default user or throw an appropriate error
+      throw FormatException('Expected Map<String, dynamic> but got ${data.runtimeType}');
+    }
+    
+    // Simple role conversion
+    final roleString = data['role']?.toString() ?? 'user';
+    final userRole = roleString == 'restaurant' 
+        ? UserRole.restaurant 
+        : roleString == 'admin' 
+          ? UserRole.admin 
+          : UserRole.user;
+
     return UserModel(
       id: doc.id,
       email: data['email'] ?? '',
       name: data['name'] ?? '',
-      role: UserRole.values.firstWhere(
-        (e) => e.toString() == 'UserRole.${data['role']}',
-        orElse: () => UserRole.user,
-      ),
+      role: userRole,
       isApproved: data['isApproved'] ?? false,
       phoneNumber: data['phoneNumber'],
       profileImageUrl: data['profileImageUrl'],
@@ -50,7 +67,11 @@ class UserModel {
     return {
       'email': email,
       'name': name,
-      'role': role.toString().split('.').last,
+      'role': role == UserRole.restaurant 
+          ? 'restaurant' 
+          : role == UserRole.admin 
+            ? 'admin' 
+            : 'user',
       'isApproved': isApproved,
       'phoneNumber': phoneNumber,
       'profileImageUrl': profileImageUrl,

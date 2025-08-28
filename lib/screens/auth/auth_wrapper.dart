@@ -25,7 +25,24 @@ class AuthWrapper extends ConsumerWidget {
         return userAsync.when(
           data: (userModel) {
             if (userModel == null) {
-              return const LoginScreen();
+              // User document doesn't exist in Firestore
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, size: 64, color: Colors.red),
+                      const SizedBox(height: 16),
+                      const Text('User profile not found'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => ref.read(authProvider.notifier).signOut(),
+                        child: const Text('Sign Out'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             }
 
             // Check if restaurant owner needs approval
@@ -46,45 +63,51 @@ class AuthWrapper extends ConsumerWidget {
           loading: () => const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           ),
-          error: (error, stack) => Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Error: $error'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => ref.read(authProvider.notifier).signOut(),
-                    child: const Text('Sign Out'),
-                  ),
-                ],
+          error: (error, stack) {
+            print('User provider error: $error');
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text('Error loading user: ${error.toString()}'),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => ref.read(authProvider.notifier).signOut(),
+                      child: const Text('Sign Out'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       ),
-      error: (error, stack) => Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text('Authentication Error: $error'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.refresh(authStateProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+      error: (error, stack) {
+        print('Auth state error: $error');
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Authentication Error: ${error.toString()}'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => ref.refresh(authStateProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -10,7 +10,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.campuscart"
+    namespace = "com.kannan.campuscart"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.campuscart" 
+        applicationId = "com.kannan.campuscart" 
         minSdk = 23 // CHANGED FROM flutter.minSdkVersion to 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -65,16 +65,15 @@ android {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:34.1.0"))
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
 
     // Core Firebase
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
 
-    // Add others as needed
-    // implementation("com.google.firebase:firebase-auth")
-    // implementation("com.google.firebase:firebase-firestore")
-    // implementation("com.google.firebase:firebase-messaging")
-    // implementation("com.google.firebase:firebase-storage")
+    // Multidex support for large apps
+    implementation("androidx.multidex:multidex:2.0.1")
 }
 
 flutter {
