@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -21,7 +23,6 @@ class RestaurantDetailScreen extends ConsumerStatefulWidget {
 class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _selectedCategory = 'All';
 
   @override
   void initState() {
@@ -406,7 +407,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
                                   ),
                                 ),
                               ),
-                            )).toList(),
+                            )),
                           ],
                         );
                       },

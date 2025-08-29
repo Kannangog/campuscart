@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -262,6 +264,8 @@ class _UsersManagementScreenState extends ConsumerState<UsersManagementScreen>
         return Colors.green;
       case UserRole.admin:
         return Colors.purple;
+      case UserRole.restaurantOwner:
+        return Colors.orange;
     }
   }
 
@@ -273,6 +277,8 @@ class _UsersManagementScreenState extends ConsumerState<UsersManagementScreen>
         return Icons.restaurant;
       case UserRole.admin:
         return Icons.admin_panel_settings;
+      case UserRole.restaurantOwner:
+        return Icons.restaurant;
     }
   }
 
@@ -284,6 +290,8 @@ class _UsersManagementScreenState extends ConsumerState<UsersManagementScreen>
         return 'Restaurant';
       case UserRole.admin:
         return 'Admin';
+      case UserRole.restaurantOwner:
+        return 'Restaurant Owner';
     }
   }
 

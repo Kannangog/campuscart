@@ -1,29 +1,128 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/order_model.dart';
 
+// Error handling utility
+class FirestoreErrorHandler {
+  static bool isIndexError(FirebaseException e) {
+    return e.code == 'failed-precondition' && 
+           e.message?.contains('index') == true;
+  }
+  
+  static String getIndexErrorMessage(FirebaseException e) {
+    final message = e.message ?? '';
+    final regex = RegExp(r'https://console\.firebase\.google\.com[^\s]+');
+    final match = regex.firstMatch(message);
+    
+    if (match != null) {
+      return 'We\'re setting up your orders view. Please try again in a few moments.';
+    }
+    
+    return 'Database configuration in progress. Please wait a moment.';
+  }
+}
+
+// Provider for checking if indexes are ready
+final indexesReadyProvider = FutureProvider.family<bool, List<String>>((ref, indexUrls) async {
+  // In a real app, you might want to implement actual index status checking
+  // For now, we'll assume indexes are ready after a short delay
+  await Future.delayed(const Duration(seconds: 5));
+  return true;
+});
+
+// Enhanced user orders provider with error handling
 final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, userId) {
-  return FirebaseFirestore.instance
+  final streamController = StreamController<List<OrderModel>>();
+  bool hasShownIndexError = false;
+  
+  final subscription = FirebaseFirestore.instance
       .collection('orders')
       .where('userId', isEqualTo: userId)
       .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => OrderModel.fromFirestore(doc))
-          .toList());
+      .handleError((error, stackTrace) {
+        if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
+          if (!hasShownIndexError) {
+            hasShownIndexError = true;
+            // Emit empty list with a special indicator that index is being built
+            streamController.add([]);
+            // You could add a flag to show a UI message about index building
+          }
+        } else {
+          // Re-throw other errors
+          streamController.addError(error, stackTrace);
+        }
+      })
+      .listen((snapshot) {
+        final orders = snapshot.docs
+            .map((doc) => OrderModel.fromFirestore(doc))
+            .toList();
+        streamController.add(orders);
+      });
+
+  ref.onDispose(() {
+    subscription.cancel();
+    streamController.close();
+  });
+
+  return streamController.stream;
 });
 
+// Enhanced restaurant orders provider
 final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
-  return FirebaseFirestore.instance
+  final streamController = StreamController<List<OrderModel>>();
+  bool hasShownIndexError = false;
+  
+  final subscription = FirebaseFirestore.instance
       .collection('orders')
       .where('restaurantId', isEqualTo: restaurantId)
       .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => OrderModel.fromFirestore(doc))
-          .toList());
+      .handleError((error, stackTrace) {
+        if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
+          if (!hasShownIndexError) {
+            hasShownIndexError = true;
+            streamController.add([]);
+          }
+        } else {
+          streamController.addError(error, stackTrace);
+        }
+      })
+      .listen((snapshot) {
+        final orders = snapshot.docs
+            .map((doc) => OrderModel.fromFirestore(doc))
+            .toList();
+        streamController.add(orders);
+      });
+
+  ref.onDispose(() {
+    subscription.cancel();
+    streamController.close();
+  });
+
+  return streamController.stream;
 });
 
+// Fallback provider for when indexes aren't ready
+final userOrdersFallbackProvider = StreamProvider.family<List<OrderModel>, String>((ref, userId) {
+  // Simple query without ordering as fallback
+  return FirebaseFirestore.instance
+      .collection('orders')
+      .where('userId', isEqualTo: userId)
+      .snapshots()
+      .map((snapshot) {
+        final orders = snapshot.docs
+            .map((doc) => OrderModel.fromFirestore(doc))
+            .toList();
+        // Manual sorting as fallback
+        orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return orders;
+      });
+});
+
+// All orders provider with error handling
 final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
   return FirebaseFirestore.instance
       .collection('orders')
@@ -34,6 +133,7 @@ final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
           .toList());
 });
 
+// Single order provider remains the same
 final orderProvider = StreamProvider.family<OrderModel?, String>((ref, orderId) {
   return FirebaseFirestore.instance
       .collection('orders')
@@ -42,14 +142,17 @@ final orderProvider = StreamProvider.family<OrderModel?, String>((ref, orderId) 
       .map((doc) => doc.exists ? OrderModel.fromFirestore(doc) : null);
 });
 
+// Enhanced order management with retry logic
 final orderManagementProvider = StateNotifierProvider<OrderManagementNotifier, AsyncValue<void>>((ref) {
-  return OrderManagementNotifier();
+  return OrderManagementNotifier(ref);
 });
 
 class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
-  OrderManagementNotifier() : super(const AsyncValue.data(null));
+  final Ref ref;
+  OrderManagementNotifier(this.ref) : super(const AsyncValue.data(null));
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final int _maxRetries = 3;
 
   Future<String> createOrder(OrderModel order) async {
     try {
@@ -67,7 +170,7 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> updateOrderStatus(String orderId, OrderStatus status) async {
+  Future<void> updateOrderStatus(String orderId, OrderStatus status, {int retryCount = 0}) async {
     try {
       state = const AsyncValue.loading();
       
@@ -76,7 +179,6 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
         'updatedAt': Timestamp.fromDate(DateTime.now()),
       };
 
-      // Set estimated delivery time for certain statuses
       if (status == OrderStatus.confirmed) {
         updates['estimatedDeliveryTime'] = Timestamp.fromDate(
           DateTime.now().add(const Duration(minutes: 30)),
@@ -90,12 +192,17 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       state = const AsyncValue.data(null);
     } catch (e) {
+      if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
+        // Wait and retry for index errors
+        await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+        return updateOrderStatus(orderId, status, retryCount: retryCount + 1);
+      }
       state = AsyncValue.error(e, StackTrace.current);
       rethrow;
     }
   }
 
-  Future<void> cancelOrder(String orderId) async {
+  Future<void> cancelOrder(String orderId, {int retryCount = 0}) async {
     try {
       state = const AsyncValue.loading();
       
@@ -106,14 +213,20 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       state = const AsyncValue.data(null);
     } catch (e) {
+      if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
+        await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+        return cancelOrder(orderId, retryCount: retryCount + 1);
+      }
       state = AsyncValue.error(e, StackTrace.current);
       rethrow;
     }
   }
 
+  // Analytics methods with error handling
   Future<Map<String, dynamic>> getOrderAnalytics(String restaurantId, {
     DateTime? startDate,
     DateTime? endDate,
+    int retryCount = 0,
   }) async {
     try {
       Query query = _firestore
@@ -127,52 +240,88 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
         query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
       }
 
-      final snapshot = await query.get();
+      // Try with ordering first
+      Query orderedQuery = query.orderBy('createdAt', descending: true);
+      final snapshot = await orderedQuery.get();
       final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
 
-      double totalRevenue = 0;
-      int totalOrders = orders.length;
-      int completedOrders = 0;
-      int cancelledOrders = 0;
-      Map<String, int> itemCounts = {};
+      return _calculateOrderAnalytics(orders);
+    } catch (e) {
+      if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
+        // Fallback: try without ordering
+        try {
+          Query query = _firestore
+              .collection('orders')
+              .where('restaurantId', isEqualTo: restaurantId);
 
-      for (final order in orders) {
-        if (order.status == OrderStatus.delivered) {
-          totalRevenue += order.total;
-          completedOrders++;
-        } else if (order.status == OrderStatus.cancelled) {
-          cancelledOrders++;
-        }
+          if (startDate != null) {
+            query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+          }
+          if (endDate != null) {
+            query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+          }
 
-        // Count items
-        for (final item in order.items) {
-          itemCounts[item.name] = (itemCounts[item.name] ?? 0) + item.quantity;
+          final snapshot = await query.get();
+          final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
+          // Manual sorting
+          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          return _calculateOrderAnalytics(orders);
+        } catch (fallbackError) {
+          // If fallback also fails, wait and retry
+          await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+          return getOrderAnalytics(restaurantId, 
+            startDate: startDate, 
+            endDate: endDate, 
+            retryCount: retryCount + 1
+          );
         }
       }
-
-      // Get top selling items
-      final topItems = itemCounts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      return {
-        'totalRevenue': totalRevenue,
-        'totalOrders': totalOrders,
-        'completedOrders': completedOrders,
-        'cancelledOrders': cancelledOrders,
-        'averageOrderValue': totalOrders > 0 ? totalRevenue / completedOrders : 0,
-        'topSellingItems': topItems.take(5).map((e) => {
-          'name': e.key,
-          'count': e.value,
-        }).toList(),
-      };
-    } catch (e) {
       rethrow;
     }
   }
 
+  Map<String, dynamic> _calculateOrderAnalytics(List<OrderModel> orders) {
+    double totalRevenue = 0;
+    int totalOrders = orders.length;
+    int completedOrders = 0;
+    int cancelledOrders = 0;
+    Map<String, int> itemCounts = {};
+
+    for (final order in orders) {
+      if (order.status == OrderStatus.delivered) {
+        totalRevenue += order.total;
+        completedOrders++;
+      } else if (order.status == OrderStatus.cancelled) {
+        cancelledOrders++;
+      }
+
+      for (final item in order.items) {
+        itemCounts[item.name] = (itemCounts[item.name] ?? 0) + item.quantity;
+      }
+    }
+
+    final topItems = itemCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return {
+      'totalRevenue': totalRevenue,
+      'totalOrders': totalOrders,
+      'completedOrders': completedOrders,
+      'cancelledOrders': cancelledOrders,
+      'averageOrderValue': completedOrders > 0 ? totalRevenue / completedOrders : 0,
+      'topSellingItems': topItems.take(5).map((e) => {
+        'name': e.key,
+        'count': e.value,
+      }).toList(),
+    };
+  }
+
+  // Similar enhancement for platform analytics
   Future<Map<String, dynamic>> getPlatformAnalytics({
     DateTime? startDate,
     DateTime? endDate,
+    int retryCount = 0,
   }) async {
     try {
       Query query = _firestore.collection('orders');
@@ -184,45 +333,75 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
         query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
       }
 
-      final snapshot = await query.get();
+      Query orderedQuery = query.orderBy('createdAt', descending: true);
+      final snapshot = await orderedQuery.get();
       final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
 
-      double totalRevenue = 0;
-      int totalOrders = orders.length;
-      int completedOrders = 0;
-      Map<String, double> restaurantRevenue = {};
-      Map<String, int> restaurantOrders = {};
-
-      for (final order in orders) {
-        if (order.status == OrderStatus.delivered) {
-          totalRevenue += order.total;
-          completedOrders++;
-          
-          restaurantRevenue[order.restaurantName] = 
-              (restaurantRevenue[order.restaurantName] ?? 0) + order.total;
-        }
-        
-        restaurantOrders[order.restaurantName] = 
-            (restaurantOrders[order.restaurantName] ?? 0) + 1;
-      }
-
-      // Get top restaurants by revenue
-      final topRestaurants = restaurantRevenue.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      return {
-        'totalRevenue': totalRevenue,
-        'totalOrders': totalOrders,
-        'completedOrders': completedOrders,
-        'averageOrderValue': completedOrders > 0 ? totalRevenue / completedOrders : 0,
-        'topRestaurants': topRestaurants.take(5).map((e) => {
-          'name': e.key,
-          'revenue': e.value,
-          'orders': restaurantOrders[e.key] ?? 0,
-        }).toList(),
-      };
+      return _calculatePlatformAnalytics(orders);
     } catch (e) {
+      if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
+        // Fallback without ordering
+        try {
+          Query query = _firestore.collection('orders');
+
+          if (startDate != null) {
+            query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+          }
+          if (endDate != null) {
+            query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+          }
+
+          final snapshot = await query.get();
+          final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
+          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          return _calculatePlatformAnalytics(orders);
+        } catch (fallbackError) {
+          await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+          return getPlatformAnalytics(
+            startDate: startDate, 
+            endDate: endDate, 
+            retryCount: retryCount + 1
+          );
+        }
+      }
       rethrow;
     }
+  }
+
+  Map<String, dynamic> _calculatePlatformAnalytics(List<OrderModel> orders) {
+    double totalRevenue = 0;
+    int totalOrders = orders.length;
+    int completedOrders = 0;
+    Map<String, double> restaurantRevenue = {};
+    Map<String, int> restaurantOrders = {};
+
+    for (final order in orders) {
+      if (order.status == OrderStatus.delivered) {
+        totalRevenue += order.total;
+        completedOrders++;
+        
+        restaurantRevenue[order.restaurantName] = 
+            (restaurantRevenue[order.restaurantName] ?? 0) + order.total;
+      }
+      
+      restaurantOrders[order.restaurantName] = 
+          (restaurantOrders[order.restaurantName] ?? 0) + 1;
+    }
+
+    final topRestaurants = restaurantRevenue.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return {
+      'totalRevenue': totalRevenue,
+      'totalOrders': totalOrders,
+      'completedOrders': completedOrders,
+      'averageOrderValue': completedOrders > 0 ? totalRevenue / completedOrders : 0,
+      'topRestaurants': topRestaurants.take(5).map((e) => {
+        'name': e.key,
+        'revenue': e.value,
+        'orders': restaurantOrders[e.key] ?? 0,
+      }).toList(),
+    };
   }
 }

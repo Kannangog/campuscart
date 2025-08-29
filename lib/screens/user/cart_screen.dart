@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -358,7 +360,7 @@ class CartScreen extends ConsumerWidget {
           ElevatedButton.icon(
             onPressed: () {
               // Navigate to restaurants screen
-              DefaultTabController.of(context)?.animateTo(1);
+              DefaultTabController.of(context).animateTo(1);
             },
             icon: const Icon(Icons.restaurant),
             label: const Text('Browse Restaurants'),

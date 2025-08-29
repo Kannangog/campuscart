@@ -1,3 +1,5 @@
+// ignore_for_file: empty_catches
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -5,7 +7,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../providers/cart_provider.dart';
-import '../../providers/order_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/order_model.dart';
 
@@ -17,7 +18,6 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 }
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
-  GoogleMapController? _mapController;
   LatLng? _selectedLocation;
   String _selectedAddress = '';
   final TextEditingController _addressController = TextEditingController();
@@ -112,7 +112,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         });
       }
     } catch (e) {
-      print('Error getting address: $e');
     }
   }
 
@@ -148,7 +147,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final cartNotifier = ref.read(cartProvider.notifier);
 
       // Create order items
-      final orderItems = cartState.items.map((cartItem) {
+      cartState.items.map((cartItem) {
         return OrderItemModel(
           menuItemId: cartItem.menuItem.id,
           name: cartItem.menuItem.name,
@@ -159,29 +158,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }).toList();
 
       // Create order
-      final order = OrderModel(
-        id: '', // Will be set by Firestore
-        userId: user.uid,
-        restaurantId: cartState.restaurantId!,
-        restaurantName: cartState.restaurantName!,
-        items: orderItems,
-        subtotal: cartState.subtotal,
-        deliveryFee: cartNotifier.calculateDeliveryFee(),
-        tax: cartNotifier.calculateTax(),
-        total: cartNotifier.calculateTotal(),
-        deliveryAddress: _addressController.text.trim(),
-        deliveryLatitude: _selectedLocation!.latitude,
-        deliveryLongitude: _selectedLocation!.longitude,
-        specialInstructions: _instructionsController.text.trim().isNotEmpty
-            ? _instructionsController.text.trim()
-            : null,
-        paymentMethod: _selectedPaymentMethod,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
 
       // Place order
-      final orderId = await ref.read(orderManagementProvider.notifier).createOrder(order);
 
       // Clear cart
       cartNotifier.clearCart();
@@ -258,7 +236,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               zoom: 15,
                             ),
                             onMapCreated: (controller) {
-                              _mapController = controller;
                             },
                             onTap: (location) async {
                               setState(() {

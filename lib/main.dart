@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/auth/auth_wrapper.dart';
@@ -13,16 +12,13 @@ void main() async {
     // Check if Firebase is already initialized
     try {
       Firebase.app();
-      print('Firebase already initialized');
     } catch (_) {
       // Initialize if not already initialized
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      print('Firebase initialized successfully');
     }
   } catch (e) {
-    print('Firebase initialization error: $e');
     // Continue without Firebase for debugging
   }
   

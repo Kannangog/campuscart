@@ -8,15 +8,39 @@ import '../user/user_dashboard.dart';
 import '../restaurant/restaurant_dashboard.dart';
 import '../admin/admin_dashboard.dart';
 
-class AuthWrapper extends ConsumerWidget {
+class AuthWrapper extends ConsumerStatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends ConsumerState<AuthWrapper> {
+  bool _isInitialCheckDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add a small delay to ensure auth state is properly loaded
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() => _isInitialCheckDone = true);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
 
     return authState.when(
       data: (user) {
+        if (!_isInitialCheckDone) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
         if (user == null) {
           return const LoginScreen();
         }
@@ -25,7 +49,6 @@ class AuthWrapper extends ConsumerWidget {
         return userAsync.when(
           data: (userModel) {
             if (userModel == null) {
-              // User document doesn't exist in Firestore
               return Scaffold(
                 body: Center(
                   child: Column(
@@ -45,26 +68,30 @@ class AuthWrapper extends ConsumerWidget {
               );
             }
 
+            // Debug print to check the user role and approval status
+            debugPrint('User Role: ${userModel.role}');
+            debugPrint('Is Approved: ${userModel.isApproved}');
+
             // Check if restaurant owner needs approval
-            if (userModel.role == UserRole.restaurant && !userModel.isApproved) {
+            if (userModel.role == UserRole.restaurantOwner && !userModel.isApproved) {
               return const PendingApprovalScreen();
             }
 
             // Route to appropriate dashboard based on role
             switch (userModel.role) {
-              case UserRole.user:
-                return const UserDashboard();
-              case UserRole.restaurant:
-                return const RestaurantDashboard();
               case UserRole.admin:
                 return const AdminDashboard();
+              case UserRole.restaurantOwner:
+                return const RestaurantDashboard();
+              case UserRole.user:
+              default:
+                return const UserDashboard();
             }
           },
           loading: () => const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           ),
           error: (error, stack) {
-            print('User provider error: $error');
             return Scaffold(
               body: Center(
                 child: Column(
@@ -89,7 +116,6 @@ class AuthWrapper extends ConsumerWidget {
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (error, stack) {
-        print('Auth state error: $error');
         return Scaffold(
           body: Center(
             child: Column(

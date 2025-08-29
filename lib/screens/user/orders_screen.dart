@@ -99,7 +99,7 @@ class OrdersScreen extends ConsumerWidget {
           ElevatedButton.icon(
             onPressed: () {
               // Navigate to restaurants screen
-              DefaultTabController.of(context)?.animateTo(1);
+              DefaultTabController.of(context).animateTo(1);
             },
             icon: const Icon(Icons.restaurant),
             label: const Text('Start Ordering'),

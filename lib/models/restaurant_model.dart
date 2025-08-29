@@ -46,28 +46,28 @@ class RestaurantModel {
   });
 
   factory RestaurantModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
     return RestaurantModel(
       id: doc.id,
-      name: data['name'] ?? '',
-      description: data['description'] ?? '',
-      ownerId: data['ownerId'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
-      address: data['address'] ?? '',
+      name: data['name']?.toString() ?? '',
+      description: data['description']?.toString() ?? '',
+      ownerId: data['ownerId']?.toString() ?? '',
+      imageUrl: data['imageUrl']?.toString() ?? '',
+      address: data['address']?.toString() ?? '',
       latitude: (data['latitude'] ?? 0.0).toDouble(),
       longitude: (data['longitude'] ?? 0.0).toDouble(),
-      phoneNumber: data['phoneNumber'] ?? '',
+      phoneNumber: data['phoneNumber']?.toString() ?? '',
       categories: List<String>.from(data['categories'] ?? []),
       rating: (data['rating'] ?? 0.0).toDouble(),
-      reviewCount: data['reviewCount'] ?? 0,
+      reviewCount: (data['reviewCount'] ?? 0).toInt(),
       isOpen: data['isOpen'] ?? true,
       openingHours: Map<String, String>.from(data['openingHours'] ?? {}),
       deliveryFee: (data['deliveryFee'] ?? 0.0).toDouble(),
-      estimatedDeliveryTime: data['estimatedDeliveryTime'] ?? 30,
+      estimatedDeliveryTime: (data['estimatedDeliveryTime'] ?? 30).toInt(),
       minimumOrder: (data['minimumOrder'] ?? 0.0).toDouble(),
       isApproved: data['isApproved'] ?? false,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -96,8 +96,10 @@ class RestaurantModel {
   }
 
   RestaurantModel copyWith({
+    String? id,
     String? name,
     String? description,
+    String? ownerId,
     String? imageUrl,
     String? address,
     double? latitude,
@@ -112,13 +114,14 @@ class RestaurantModel {
     int? estimatedDeliveryTime,
     double? minimumOrder,
     bool? isApproved,
+    DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return RestaurantModel(
-      id: id,
+      id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
-      ownerId: ownerId,
+      ownerId: ownerId ?? this.ownerId,
       imageUrl: imageUrl ?? this.imageUrl,
       address: address ?? this.address,
       latitude: latitude ?? this.latitude,
@@ -133,8 +136,41 @@ class RestaurantModel {
       estimatedDeliveryTime: estimatedDeliveryTime ?? this.estimatedDeliveryTime,
       minimumOrder: minimumOrder ?? this.minimumOrder,
       isApproved: isApproved ?? this.isApproved,
-      createdAt: createdAt,
-      updatedAt: updatedAt ?? DateTime.now(),
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  static RestaurantModel empty() {
+    return RestaurantModel(
+      id: '',
+      name: '',
+      description: '',
+      ownerId: '',
+      imageUrl: '',
+      address: '',
+      latitude: 0.0,
+      longitude: 0.0,
+      phoneNumber: '',
+      categories: [],
+      rating: 0.0,
+      reviewCount: 0,
+      isOpen: true,
+      openingHours: {},
+      deliveryFee: 0.0,
+      estimatedDeliveryTime: 30,
+      minimumOrder: 0.0,
+      isApproved: false,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  // Helper methods
+  bool get hasMinimumOrder => minimumOrder > 0;
+  bool get hasDeliveryFee => deliveryFee > 0;
+  String get formattedRating => rating.toStringAsFixed(1);
+  String get formattedDeliveryTime => '$estimatedDeliveryTime min';
+  String get formattedDeliveryFee => deliveryFee == 0 ? 'Free' : '\$$deliveryFee';
+  String get formattedMinimumOrder => minimumOrder == 0 ? 'No minimum' : '\$$minimumOrder minimum';
 }

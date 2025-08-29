@@ -1,16 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum UserRole { user, restaurant, admin }
+enum UserRole { user, restaurantOwner, admin, restaurant }
 
 class UserModel {
   final String id;
   final String email;
   final String name;
-  final UserRole role;
-  final bool isApproved;
   final String? phoneNumber;
   final String? profileImageUrl;
-  final List<String> savedAddresses;
+  final UserRole role;
+  final bool isApproved;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -18,89 +17,83 @@ class UserModel {
     required this.id,
     required this.email,
     required this.name,
-    required this.role,
-    this.isApproved = false,
     this.phoneNumber,
     this.profileImageUrl,
-    this.savedAddresses = const [],
+    required this.role,
+    required this.isApproved,
     required this.createdAt,
     required this.updatedAt,
   });
 
-  factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data();
-    
-    // Debug print to see what we're actually getting
-    print('Firestore data type: ${data.runtimeType}');
-    print('Firestore data: $data');
-    
-    // Handle the case where data might be a List or other unexpected type
-    if (data is! Map<String, dynamic>) {
-      print('Unexpected data type received from Firestore');
-      // Return a default user or throw an appropriate error
-      throw FormatException('Expected Map<String, dynamic> but got ${data.runtimeType}');
-    }
-    
-    // Simple role conversion
-    final roleString = data['role']?.toString() ?? 'user';
-    final userRole = roleString == 'restaurant' 
-        ? UserRole.restaurant 
-        : roleString == 'admin' 
-          ? UserRole.admin 
-          : UserRole.user;
-
-    return UserModel(
-      id: doc.id,
-      email: data['email'] ?? '',
-      name: data['name'] ?? '',
-      role: userRole,
-      isApproved: data['isApproved'] ?? false,
-      phoneNumber: data['phoneNumber'],
-      profileImageUrl: data['profileImageUrl'],
-      savedAddresses: List<String>.from(data['savedAddresses'] ?? []),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
-    );
-  }
-
+  // Convert to Firestore
   Map<String, dynamic> toFirestore() {
     return {
+      'id': id,
       'email': email,
       'name': name,
-      'role': role == UserRole.restaurant 
-          ? 'restaurant' 
-          : role == UserRole.admin 
-            ? 'admin' 
-            : 'user',
-      'isApproved': isApproved,
       'phoneNumber': phoneNumber,
       'profileImageUrl': profileImageUrl,
-      'savedAddresses': savedAddresses,
+      'role': role.index, // Store as integer index
+      'isApproved': isApproved,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
 
+  // Convert from Firestore
+  factory UserModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    
+    // Handle role conversion from both integer and string formats
+    UserRole role;
+    if (data['role'] is int) {
+      // Handle integer index
+      final roleIndex = data['role'] as int;
+      role = UserRole.values[roleIndex.clamp(0, UserRole.values.length - 1)];
+    } else if (data['role'] is String) {
+      // Handle string format (for backward compatibility)
+      final roleString = data['role'] as String;
+      role = UserRole.values.firstWhere(
+        (e) => e.toString() == 'UserRole.$roleString' || e.toString() == roleString,
+        orElse: () => UserRole.user,
+      );
+    } else {
+      role = UserRole.user;
+    }
+
+    return UserModel(
+      id: data['id'] ?? doc.id,
+      email: data['email'] ?? '',
+      name: data['name'] ?? '',
+      phoneNumber: data['phoneNumber'],
+      profileImageUrl: data['profileImageUrl'],
+      role: role,
+      isApproved: data['isApproved'] ?? false,
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
   UserModel copyWith({
+    String? id,
     String? email,
     String? name,
-    UserRole? role,
-    bool? isApproved,
     String? phoneNumber,
     String? profileImageUrl,
-    List<String>? savedAddresses,
+    UserRole? role,
+    bool? isApproved,
+    DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return UserModel(
-      id: id,
+      id: id ?? this.id,
       email: email ?? this.email,
       name: name ?? this.name,
-      role: role ?? this.role,
-      isApproved: isApproved ?? this.isApproved,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
-      savedAddresses: savedAddresses ?? this.savedAddresses,
-      createdAt: createdAt,
+      role: role ?? this.role,
+      isApproved: isApproved ?? this.isApproved,
+      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

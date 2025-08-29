@@ -4,6 +4,7 @@ import 'analytics_screen.dart';
 import 'menu_management_screen.dart';
 import 'orders_management_screen.dart';
 import 'offers_screen.dart';
+import 'restaurant_profile.dart'; // Import the profile screen
 
 class RestaurantDashboard extends ConsumerStatefulWidget {
   const RestaurantDashboard({super.key});
@@ -20,11 +21,13 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> {
     const MenuManagementScreen(),
     const OrdersManagementScreen(),
     const OffersScreen(),
+    const RestaurantProfileScreen(), // Added profile screen
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: _currentIndex == 4 ? null : _buildAppBar(), // No app bar for profile screen
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
@@ -65,5 +68,60 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> {
         ],
       ),
     );
+  }
+
+  AppBar? _buildAppBar() {
+    switch (_currentIndex) {
+      case 0:
+        return AppBar(
+          title: const Text('Analytics Dashboard'),
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+        );
+      case 1:
+        return AppBar(
+          title: const Text('Menu Management'),
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                // Add new menu item
+              },
+            ),
+          ],
+        );
+      case 2:
+        return AppBar(
+          title: const Text('Orders Management'),
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.filter_list),
+              onPressed: () {
+                // Filter orders
+              },
+            ),
+          ],
+        );
+      case 3:
+        return AppBar(
+          title: const Text('Offers & Promotions'),
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                // Add new offer
+              },
+            ),
+          ],
+        );
+      default:
+        return null; // No app bar for profile screen
+    }
   }
 }

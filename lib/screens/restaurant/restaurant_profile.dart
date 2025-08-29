@@ -5,14 +5,14 @@ import 'package:campuscart/models/user_model.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
-class AdminProfileScreen extends ConsumerStatefulWidget {
-  const AdminProfileScreen({super.key});
+class RestaurantProfileScreen extends ConsumerStatefulWidget {
+  const RestaurantProfileScreen({super.key});
 
   @override
-  ConsumerState<AdminProfileScreen> createState() => _AdminProfileScreenState();
+  ConsumerState<RestaurantProfileScreen> createState() => _RestaurantProfileScreenState();
 }
 
-class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
+class _RestaurantProfileScreenState extends ConsumerState<RestaurantProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -138,8 +138,8 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Profile'),
-        backgroundColor: Colors.blue, // Different color for admin
+        title: const Text('Restaurant Profile'),
+        backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -158,24 +158,6 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Admin Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'ADMIN',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
                   // Profile Image
                   GestureDetector(
                     onTap: _pickImage,
@@ -190,7 +172,7 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                                   : const AssetImage('assets/images/default_profile.png'))
                                   as ImageProvider,
                           child: _profileImage == null && userModel?.profileImageUrl == null
-                              ? const Icon(Icons.admin_panel_settings, size: 60, color: Colors.grey)
+                              ? const Icon(Icons.person, size: 60, color: Colors.grey)
                               : null,
                         ),
                         Positioned(
@@ -199,7 +181,7 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: const BoxDecoration(
-                              color: Colors.blue,
+                              color: Colors.orange,
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
@@ -233,7 +215,7 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                         userModel.role.toString().split('.').last.toUpperCase(),
                         style: const TextStyle(color: Colors.white),
                       ),
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.orange,
                     ),
                   ],
                   const SizedBox(height: 30),
@@ -242,13 +224,13 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                   TextFormField(
                     controller: _nameController,
                     decoration: const InputDecoration(
-                      labelText: 'Admin Name',
-                      prefixIcon: Icon(Icons.person),
+                      labelText: 'Restaurant Name',
+                      prefixIcon: Icon(Icons.restaurant),
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your name';
+                        return 'Please enter restaurant name';
                       }
                       return null;
                     },
@@ -282,7 +264,7 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _updateProfile,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Colors.orange,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: _isLoading 
@@ -305,67 +287,6 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Admin Statistics Card
-                  if (userModel != null && userModel.role == UserRole.admin)
-                    Card(
-                      color: Colors.blue[50],
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Admin Statistics',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            _buildStatItem(Icons.restaurant, 'Total Restaurants', '24'),
-                            _buildStatItem(Icons.person, 'Total Users', '156'),
-                            _buildStatItem(Icons.pending_actions, 'Pending Approvals', '5'),
-                            _buildStatItem(Icons.receipt, 'Total Orders', '342'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-
-                  // Quick Actions
-                  if (userModel != null && userModel.role == UserRole.admin)
-                    Card(
-                      color: Colors.grey[50],
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Quick Actions',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                _buildActionChip(Icons.approval, 'Approve Restaurants', () {}),
-                                _buildActionChip(Icons.people, 'Manage Users', () {}),
-                                _buildActionChip(Icons.settings, 'System Settings', () {}),
-                                _buildActionChip(Icons.analytics, 'View Reports', () {}),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-
                   // Logout Button
                   SizedBox(
                     width: double.infinity,
@@ -384,6 +305,36 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 20),
+
+                  // Restaurant Status
+                  if (userModel != null && userModel.role == UserRole.restaurantOwner)
+                    Card(
+                      color: userModel.isApproved ? Colors.green[50] : Colors.orange[50],
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Icon(
+                              userModel.isApproved ? Icons.verified : Icons.pending,
+                              color: userModel.isApproved ? Colors.green : Colors.orange,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                userModel.isApproved
+                                    ? 'Your restaurant is approved and visible to customers'
+                                    : 'Your restaurant is pending approval',
+                                style: TextStyle(
+                                  color: userModel.isApproved ? Colors.green : Colors.orange,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -405,42 +356,6 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(IconData icon, String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.blue, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(title, style: const TextStyle(fontSize: 14)),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionChip(IconData icon, String label, VoidCallback onTap) {
-    return ActionChip(
-      avatar: Icon(icon, size: 16, color: Colors.blue),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      onPressed: onTap,
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Colors.blue.shade200),
       ),
     );
   }
