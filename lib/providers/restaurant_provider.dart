@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/restaurant_model.dart';
 
 final restaurantsProvider = StreamProvider<List<RestaurantModel>>((ref) {
@@ -48,6 +51,19 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
   RestaurantManagementNotifier() : super(const AsyncValue.data(null));
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  Future<String> uploadImage(File imageFile) async {
+    try {
+      final fileName = 'restaurants/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = _storage.ref().child(fileName);
+      final uploadTask = ref.putFile(imageFile);
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      throw Exception('Failed to upload image: $e');
+    }
+  }
 
   Future<void> createRestaurant(RestaurantModel restaurant) async {
     try {
@@ -142,8 +158,8 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
           .map((doc) => RestaurantModel.fromFirestore(doc))
           .where((restaurant) =>
               restaurant.name.toLowerCase().contains(query.toLowerCase()) ||
-              restaurant.categories.any((category) =>
-                  category.toLowerCase().contains(query.toLowerCase())))
+              (restaurant.categories.any((category) =>
+                  category.toLowerCase().contains(query.toLowerCase()))))
           .toList();
     } catch (e) {
       rethrow;
@@ -165,4 +181,84 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       rethrow;
     }
   }
+
+  Future<void> deleteRestaurant(String id) async {
+  try {
+    // Get references to Firestore collections
+    final restaurantDoc = FirebaseFirestore.instance.collection('restaurants').doc(id);
+    final menuItemsRef = FirebaseFirestore.instance
+        .collection('restaurants')
+        .doc(id)
+        .collection('menuItems');
+    
+    // First, delete all menu items associated with this restaurant
+    final menuItemsSnapshot = await menuItemsRef.get();
+    final batch = FirebaseFirestore.instance.batch();
+    
+    for (final doc in menuItemsSnapshot.docs) {
+      batch.delete(doc.reference);
+      
+      // Optional: Delete associated images from storage if needed
+      try {
+        final imageUrl = doc.data()['imageUrl'] as String?;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+          await ref.delete();
+        }
+      } catch (e) {
+        // Continue even if image deletion fails
+        print('Error deleting menu item image: $e');
+      }
+    }
+    
+    // Commit the batch deletion of menu items
+    await batch.commit();
+    
+    // Delete the restaurant document
+    await restaurantDoc.delete();
+    
+    // Optional: Delete restaurant image from storage if exists
+    try {
+      final restaurantSnapshot = await restaurantDoc.get();
+      if (restaurantSnapshot.exists) {
+        final imageUrl = restaurantSnapshot.data()?['imageUrl'] as String?;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+          await ref.delete();
+        }
+      }
+    } catch (e) {
+      // Continue even if image deletion fails
+      print('Error deleting restaurant image: $e');
+    }
+    
+    // Optional: Delete any other related data (reviews, orders, etc.)
+    try {
+      // Delete reviews
+      final reviewsRef = FirebaseFirestore.instance
+          .collection('reviews')
+          .where('restaurantId', isEqualTo: id);
+      
+      final reviewsSnapshot = await reviewsRef.get();
+      final reviewsBatch = FirebaseFirestore.instance.batch();
+      
+      for (final doc in reviewsSnapshot.docs) {
+        reviewsBatch.delete(doc.reference);
+      }
+      
+      await reviewsBatch.commit();
+    } catch (e) {
+      print('Error deleting reviews: $e');
+    }
+    
+    print('Restaurant $id and associated data deleted successfully');
+    
+  } on FirebaseException catch (e) {
+    print('Firebase error deleting restaurant: ${e.message}');
+    throw Exception('Failed to delete restaurant: ${e.message}');
+  } catch (e) {
+    print('Unexpected error deleting restaurant: $e');
+    throw Exception('Failed to delete restaurant: $e');
+  }
+}
 }

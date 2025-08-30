@@ -21,6 +21,7 @@ class RestaurantModel {
   final bool isApproved;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String email;
 
   RestaurantModel({
     required this.id,
@@ -43,6 +44,7 @@ class RestaurantModel {
     this.isApproved = false,
     required this.createdAt,
     required this.updatedAt,
+    required this.email,
   });
 
   factory RestaurantModel.fromFirestore(DocumentSnapshot doc) {
@@ -68,6 +70,7 @@ class RestaurantModel {
       isApproved: data['isApproved'] ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      email: data['email']?.toString() ?? '',
     );
   }
 
@@ -90,6 +93,7 @@ class RestaurantModel {
       'estimatedDeliveryTime': estimatedDeliveryTime,
       'minimumOrder': minimumOrder,
       'isApproved': isApproved,
+      'email': email,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -116,6 +120,7 @@ class RestaurantModel {
     bool? isApproved,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? email,
   }) {
     return RestaurantModel(
       id: id ?? this.id,
@@ -138,6 +143,7 @@ class RestaurantModel {
       isApproved: isApproved ?? this.isApproved,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      email: email ?? this.email,
     );
   }
 
@@ -163,6 +169,7 @@ class RestaurantModel {
       isApproved: false,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      email: '',
     );
   }
 
@@ -173,4 +180,7 @@ class RestaurantModel {
   String get formattedDeliveryTime => '$estimatedDeliveryTime min';
   String get formattedDeliveryFee => deliveryFee == 0 ? 'Free' : '\$$deliveryFee';
   String get formattedMinimumOrder => minimumOrder == 0 ? 'No minimum' : '\$$minimumOrder minimum';
+  
+  // Convert to LatLng for maps
+  Map<String, double> get location => {'latitude': latitude, 'longitude': longitude};
 }

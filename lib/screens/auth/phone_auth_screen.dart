@@ -391,10 +391,10 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
                         : const Text(
                             'Continue',
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
+                        ),
                   ),
                 )
                 .animate()
@@ -409,6 +409,7 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
                 )
@@ -453,6 +454,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   bool _isLoading = false;
   bool _resendEnabled = false;
   int _resendCountdown = 60;
+  Timer? _resendTimer;
 
   @override
   void initState() {
@@ -477,6 +479,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     for (var node in _focusNodes) {
       node.dispose();
     }
+    _resendTimer?.cancel();
     super.dispose();
   }
 
@@ -486,7 +489,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       _resendCountdown = 60;
     });
 
-    Timer.periodic(const Duration(seconds: 1), (timer) {
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_resendCountdown > 0) {
         setState(() {
           _resendCountdown--;
@@ -523,9 +526,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         role: widget.role,
       );
 
-      // Navigate to appropriate screen based on user role and status
-      // This would typically be handled by your app's navigation logic
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+      // After successful verification, the AuthWrapper will automatically
+      // handle navigation to the appropriate screen based on user role
+      // Simply pop back to the root which should be the AuthWrapper
+      Navigator.of(context).popUntil((route) => route.isFirst);
       
     } catch (e) {
       setState(() => _isLoading = false);
@@ -572,6 +576,14 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
     } else if (value.isEmpty && index > 0) {
       FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
+    }
+    
+    // Auto-submit when all fields are filled
+    if (value.length == 1 && index == _otpControllers.length - 1) {
+      final allFilled = _otpControllers.every((controller) => controller.text.isNotEmpty);
+      if (allFilled) {
+        _verifyOTP();
+      }
     }
   }
 
@@ -634,6 +646,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
                         ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
                       ),
                       onChanged: (value) => _handleOtpChange(value, index),
                     ),
@@ -641,7 +655,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 }),
               ),
               
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               
               // Verify button
               SizedBox(
@@ -655,6 +669,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                     ),
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
+                    elevation: 3,
                   ),
                   child: _isLoading
                       ? const SizedBox(
@@ -675,30 +690,34 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 ),
               ),
               
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               
               // Resend OTP
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Didn't receive the code? ",
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _resendEnabled ? _resendOTP : null,
-                    child: Text(
-                      _resendEnabled ? 'Resend' : 'Resend in $_resendCountdown',
+              Center(
+                child: Column(
+                  children: [
+                    Text(
+                      "Didn't receive the code?",
                       style: TextStyle(
-                        color: _resendEnabled 
-                            ? Theme.of(context).colorScheme.primary 
-                            : Colors.grey.shade500,
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    TextButton(
+                      onPressed: _resendEnabled ? _resendOTP : null,
+                      child: Text(
+                        _resendEnabled ? 'Resend OTP' : 'Resend in $_resendCountdown seconds',
+                        style: TextStyle(
+                          color: _resendEnabled 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Colors.grey.shade500,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
