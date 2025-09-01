@@ -43,74 +43,60 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       );
     }
 
-    final userAsync = ref.watch(userProvider(user));
+    final restaurants = ref.watch(restaurantsByOwnerProvider(user.uid));
     
-    return userAsync.when(
-      data: (userModel) {
-        if (userModel == null) return const SizedBox();
+    return restaurants.when(
+      data: (restaurantList) {
+        if (restaurantList.isEmpty) {
+          return _buildNoRestaurant(context);
+        }
         
-        final restaurants = ref.watch(restaurantsByOwnerProvider(userModel.id));
+        final restaurant = restaurantList.first;
+        final orders = ref.watch(restaurantOrdersProvider(restaurant.id));
         
-        return restaurants.when(
-          data: (restaurantList) {
-            if (restaurantList.isEmpty) {
-              return _buildNoRestaurant(context);
-            }
-            
-            final restaurant = restaurantList.first;
-            final orders = ref.watch(restaurantOrdersProvider(restaurant.id));
-            
-            return Scaffold(
-              appBar: AppBar(
-                title: const Text('Orders Management'),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                bottom: TabBar(
-                  controller: _tabController,
-                  tabs: const [
-                    Tab(text: 'New'),
-                    Tab(text: 'Preparing'),
-                    Tab(text: 'Ready'),
-                    Tab(text: 'Completed'),
-                  ],
-                ),
-              ),
-              body: orders.when(
-                data: (orderList) {
-                  return TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildOrdersList(orderList, [OrderStatus.pending, OrderStatus.confirmed]),
-                      _buildOrdersList(orderList, [OrderStatus.preparing]),
-                      _buildOrdersList(orderList, [OrderStatus.ready, OrderStatus.outForDelivery]),
-                      _buildOrdersList(orderList, [OrderStatus.delivered, OrderStatus.cancelled]),
-                    ],
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, size: 64, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text('Error loading orders: $error'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => ref.refresh(restaurantOrdersProvider(restaurant.id)),
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-          loading: () => const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Orders Management'),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            bottom: TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(text: 'New'),
+                Tab(text: 'Preparing'),
+                Tab(text: 'Ready'),
+                Tab(text: 'Completed'),
+              ],
+            ),
           ),
-          error: (error, stack) => Scaffold(
-            body: Center(child: Text('Error: $error')),
+          body: orders.when(
+            data: (orderList) {
+              return TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildOrdersList(orderList, [OrderStatus.pending, OrderStatus.confirmed]),
+                  _buildOrdersList(orderList, [OrderStatus.preparing]),
+                  _buildOrdersList(orderList, [OrderStatus.ready, OrderStatus.outForDelivery]),
+                  _buildOrdersList(orderList, [OrderStatus.delivered, OrderStatus.cancelled]),
+                ],
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error loading orders: $error'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => ref.refresh(restaurantOrdersProvider(restaurant.id)),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -125,6 +111,11 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
 
   Widget _buildNoRestaurant(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Orders Management'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -209,6 +200,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
             child: Icon(
               _getStatusIcon(order.status),
               color: _getStatusColor(order.status),
+              size: 20,
             ),
           ),
           title: Text(
@@ -219,7 +211,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${order.items.length} items • \$${order.total.toStringAsFixed(2)}',
+                '${order.totalItems} items • ${order.formattedTotal}',
                 style: TextStyle(color: Colors.grey.shade600),
               ),
               const SizedBox(height: 4),
@@ -232,13 +224,32 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
               ),
             ],
           ),
-          trailing: _buildStatusChip(order.status),
+          trailing: _buildStatusChip(order.status, order),
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Customer Info
+                  Text(
+                    'Customer:',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    order.userName,
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                  Text(
+                    order.userPhone,
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
                   // Order Items
                   Text(
                     'Items:',
@@ -253,10 +264,65 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                       children: [
                         Text('${item.quantity}x '),
                         Expanded(child: Text(item.name)),
-                        Text('\$${item.totalPrice.toStringAsFixed(2)}'),
+                        Text('₹${(item.price * item.quantity).toStringAsFixed(2)}'),
                       ],
                     ),
                   )),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Order Summary
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Subtotal:', style: TextStyle(color: Colors.grey.shade600)),
+                      Text(order.formattedSubtotal),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Delivery Fee:', style: TextStyle(color: Colors.grey.shade600)),
+                      Text(order.formattedDeliveryFee),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Tax:', style: TextStyle(color: Colors.grey.shade600)),
+                      Text(order.formattedTax),
+                    ],
+                  ),
+                  if (order.discount > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Discount:', style: TextStyle(color: Colors.green.shade600)),
+                        Text('-${order.formattedDiscount}'),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Total:', style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      )),
+                      Text(
+                        order.formattedTotal,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                   
                   const SizedBox(height: 16),
                   
@@ -273,7 +339,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                   
-                  if (order.specialInstructions != null) ...[
+                  if (order.specialInstructions != null && order.specialInstructions!.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
                       'Special Instructions:',
@@ -284,9 +350,24 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                     const SizedBox(height: 4),
                     Text(
                       order.specialInstructions!,
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
                     ),
                   ],
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Payment Info
+                  Text(
+                    'Payment:',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${order.paymentMethod.toUpperCase()} • ${order.paymentStatus.toUpperCase()}',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
                   
                   const SizedBox(height: 16),
                   
@@ -301,7 +382,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
     ).animate().fadeIn(delay: (index * 100).ms).slideY(begin: 0.3);
   }
 
-  Widget _buildStatusChip(OrderStatus status) {
+  Widget _buildStatusChip(OrderStatus status, dynamic order) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -309,7 +390,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        _getStatusText(status),
+        order.formattedStatus,
         style: TextStyle(
           color: _getStatusColor(status),
           fontSize: 12,
@@ -391,8 +472,8 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Order status updated successfully!'),
+          SnackBar(
+            content: Text('Order status updated to ${_getStatusText(newStatus)}!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -425,6 +506,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         return Colors.green;
       case OrderStatus.cancelled:
         return Colors.red;
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -444,6 +528,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         return Icons.check_circle_outline;
       case OrderStatus.cancelled:
         return Icons.cancel;
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -463,6 +550,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         return 'Delivered';
       case OrderStatus.cancelled:
         return 'Cancelled';
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 }

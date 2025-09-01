@@ -303,6 +303,9 @@ class OrdersScreen extends ConsumerWidget {
         textColor = Colors.red.shade700;
         text = 'Cancelled';
         break;
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
 
     return Container(

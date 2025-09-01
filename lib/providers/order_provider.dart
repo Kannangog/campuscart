@@ -48,7 +48,6 @@ final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref,
             hasShownIndexError = true;
             // Emit empty list with a special indicator that index is being built
             streamController.add([]);
-            // You could add a flag to show a UI message about index building
           }
         } else {
           // Re-throw other errors
@@ -124,22 +123,100 @@ final userOrdersFallbackProvider = StreamProvider.family<List<OrderModel>, Strin
 
 // All orders provider with error handling
 final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
-  return FirebaseFirestore.instance
+  final streamController = StreamController<List<OrderModel>>();
+  bool hasShownIndexError = false;
+  
+  final subscription = FirebaseFirestore.instance
       .collection('orders')
       .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => OrderModel.fromFirestore(doc))
-          .toList());
+      .handleError((error, stackTrace) {
+        if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
+          if (!hasShownIndexError) {
+            hasShownIndexError = true;
+            streamController.add([]);
+          }
+        } else {
+          streamController.addError(error, stackTrace);
+        }
+      })
+      .listen((snapshot) {
+        final orders = snapshot.docs
+            .map((doc) => OrderModel.fromFirestore(doc))
+            .toList();
+        streamController.add(orders);
+      });
+
+  ref.onDispose(() {
+    subscription.cancel();
+    streamController.close();
+  });
+
+  return streamController.stream;
 });
 
-// Single order provider remains the same
+// Single order provider with error handling
 final orderProvider = StreamProvider.family<OrderModel?, String>((ref, orderId) {
-  return FirebaseFirestore.instance
+  final streamController = StreamController<OrderModel?>();
+  
+  final subscription = FirebaseFirestore.instance
       .collection('orders')
       .doc(orderId)
       .snapshots()
-      .map((doc) => doc.exists ? OrderModel.fromFirestore(doc) : null);
+      .handleError((error, stackTrace) {
+        streamController.addError(error, stackTrace);
+      })
+      .listen((doc) {
+        streamController.add(doc.exists ? OrderModel.fromFirestore(doc) : null);
+      });
+
+  ref.onDispose(() {
+    subscription.cancel();
+    streamController.close();
+  });
+
+  return streamController.stream;
+});
+
+// Active orders provider for restaurant (pending, confirmed, preparing, ready)
+final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
+  final streamController = StreamController<List<OrderModel>>();
+  bool hasShownIndexError = false;
+  
+  final subscription = FirebaseFirestore.instance
+      .collection('orders')
+      .where('restaurantId', isEqualTo: restaurantId)
+      .where('status', whereIn: [
+        'pending',
+        'confirmed', 
+        'preparing',
+        'ready'
+      ])
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .handleError((error, stackTrace) {
+        if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
+          if (!hasShownIndexError) {
+            hasShownIndexError = true;
+            streamController.add([]);
+          }
+        } else {
+          streamController.addError(error, stackTrace);
+        }
+      })
+      .listen((snapshot) {
+        final orders = snapshot.docs
+            .map((doc) => OrderModel.fromFirestore(doc))
+            .toList();
+        streamController.add(orders);
+      });
+
+  ref.onDispose(() {
+    subscription.cancel();
+    streamController.close();
+  });
+
+  return streamController.stream;
 });
 
 // Enhanced order management with retry logic
@@ -216,6 +293,48 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
         return cancelOrder(orderId, retryCount: retryCount + 1);
+      }
+      state = AsyncValue.error(e, StackTrace.current);
+      rethrow;
+    }
+  }
+
+  Future<void> assignDriver(String orderId, String driverId, {int retryCount = 0}) async {
+    try {
+      state = const AsyncValue.loading();
+      
+      await _firestore.collection('orders').doc(orderId).update({
+        'driverId': driverId,
+        'status': OrderStatus.outForDelivery.toString().split('.').last,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+      
+      state = const AsyncValue.data(null);
+    } catch (e) {
+      if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
+        await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+        return assignDriver(orderId, driverId, retryCount: retryCount + 1);
+      }
+      state = AsyncValue.error(e, StackTrace.current);
+      rethrow;
+    }
+  }
+
+  Future<void> markAsDelivered(String orderId, {int retryCount = 0}) async {
+    try {
+      state = const AsyncValue.loading();
+      
+      await _firestore.collection('orders').doc(orderId).update({
+        'status': OrderStatus.delivered.toString().split('.').last,
+        'deliveredAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+      
+      state = const AsyncValue.data(null);
+    } catch (e) {
+      if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
+        await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+        return markAsDelivered(orderId, retryCount: retryCount + 1);
       }
       state = AsyncValue.error(e, StackTrace.current);
       rethrow;
@@ -310,6 +429,8 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       'completedOrders': completedOrders,
       'cancelledOrders': cancelledOrders,
       'averageOrderValue': completedOrders > 0 ? totalRevenue / completedOrders : 0,
+      'completionRate': totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0,
+      'cancellationRate': totalOrders > 0 ? (cancelledOrders / totalOrders) * 100 : 0,
       'topSellingItems': topItems.take(5).map((e) => {
         'name': e.key,
         'count': e.value,
@@ -373,6 +494,7 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
     double totalRevenue = 0;
     int totalOrders = orders.length;
     int completedOrders = 0;
+    int cancelledOrders = 0;
     Map<String, double> restaurantRevenue = {};
     Map<String, int> restaurantOrders = {};
 
@@ -383,6 +505,8 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
         
         restaurantRevenue[order.restaurantName] = 
             (restaurantRevenue[order.restaurantName] ?? 0) + order.total;
+      } else if (order.status == OrderStatus.cancelled) {
+        cancelledOrders++;
       }
       
       restaurantOrders[order.restaurantName] = 
@@ -396,12 +520,48 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       'totalRevenue': totalRevenue,
       'totalOrders': totalOrders,
       'completedOrders': completedOrders,
+      'cancelledOrders': cancelledOrders,
       'averageOrderValue': completedOrders > 0 ? totalRevenue / completedOrders : 0,
+      'completionRate': totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0,
+      'cancellationRate': totalOrders > 0 ? (cancelledOrders / totalOrders) * 100 : 0,
       'topRestaurants': topRestaurants.take(5).map((e) => {
         'name': e.key,
         'revenue': e.value,
         'orders': restaurantOrders[e.key] ?? 0,
       }).toList(),
     };
+  }
+
+  // Get orders by status for a restaurant
+  Future<List<OrderModel>> getOrdersByStatus(String restaurantId, OrderStatus status, {int retryCount = 0}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('orders')
+          .where('restaurantId', isEqualTo: restaurantId)
+          .where('status', isEqualTo: status.toString().split('.').last)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
+        // Fallback without ordering
+        try {
+          final snapshot = await _firestore
+              .collection('orders')
+              .where('restaurantId', isEqualTo: restaurantId)
+              .where('status', isEqualTo: status.toString().split('.').last)
+              .get();
+
+          final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
+          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return orders;
+        } catch (fallbackError) {
+          await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+          return getOrdersByStatus(restaurantId, status, retryCount: retryCount + 1);
+        }
+      }
+      rethrow;
+    }
   }
 }

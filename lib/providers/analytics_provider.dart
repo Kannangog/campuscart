@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_types_as_parameter_names
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -118,10 +120,10 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
 
       // For demo purposes, using placeholder values for changes
       // In a real app, you would compare with previous period
-      final ordersChange = '+12%';
-      final revenueChange = '+8%';
-      final avgOrderChange = '+5%';
-      final ratingChange = '+0.2';
+      const ordersChange = '+12%';
+      const revenueChange = '+8%';
+      const avgOrderChange = '+5%';
+      const ratingChange = '+0.2';
 
       // Generate labels based on period
       final revenueLabels = _generateRevenueLabels(period);

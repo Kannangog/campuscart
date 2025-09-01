@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'home_screen.dart';
@@ -95,7 +97,7 @@ class _UserDashboardState extends ConsumerState<UserDashboard>
             items: [
               BottomNavigationBarItem(
                 icon: ScaleTransition(
-                  scale: _currentIndex == 0 ? _animation : AlwaysStoppedAnimation(1.0),
+                  scale: _currentIndex == 0 ? _animation : const AlwaysStoppedAnimation(1.0),
                   child: const Icon(Icons.home_outlined),
                 ),
                 activeIcon: ScaleTransition(
@@ -106,7 +108,7 @@ class _UserDashboardState extends ConsumerState<UserDashboard>
               ),
               BottomNavigationBarItem(
                 icon: ScaleTransition(
-                  scale: _currentIndex == 1 ? _animation : AlwaysStoppedAnimation(1.0),
+                  scale: _currentIndex == 1 ? _animation : const AlwaysStoppedAnimation(1.0),
                   child: const Icon(Icons.restaurant_outlined),
                 ),
                 activeIcon: ScaleTransition(
@@ -117,7 +119,7 @@ class _UserDashboardState extends ConsumerState<UserDashboard>
               ),
               BottomNavigationBarItem(
                 icon: ScaleTransition(
-                  scale: _currentIndex == 2 ? _animation : AlwaysStoppedAnimation(1.0),
+                  scale: _currentIndex == 2 ? _animation : const AlwaysStoppedAnimation(1.0),
                   child: _buildCartIcon(Icons.shopping_cart_outlined, cartState.totalItems),
                 ),
                 activeIcon: ScaleTransition(
@@ -128,7 +130,7 @@ class _UserDashboardState extends ConsumerState<UserDashboard>
               ),
               BottomNavigationBarItem(
                 icon: ScaleTransition(
-                  scale: _currentIndex == 3 ? _animation : AlwaysStoppedAnimation(1.0),
+                  scale: _currentIndex == 3 ? _animation : const AlwaysStoppedAnimation(1.0),
                   child: const Icon(Icons.receipt_long_outlined),
                 ),
                 activeIcon: ScaleTransition(
@@ -139,7 +141,7 @@ class _UserDashboardState extends ConsumerState<UserDashboard>
               ),
               BottomNavigationBarItem(
                 icon: ScaleTransition(
-                  scale: _currentIndex == 4 ? _animation : AlwaysStoppedAnimation(1.0),
+                  scale: _currentIndex == 4 ? _animation : const AlwaysStoppedAnimation(1.0),
                   child: const Icon(Icons.person_outlined),
                 ),
                 activeIcon: ScaleTransition(

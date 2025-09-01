@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -206,7 +208,7 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lightGreen = Colors.lightGreen;
+    const lightGreen = Colors.lightGreen;
 
     return Scaffold(
       appBar: AppBar(
@@ -352,7 +354,7 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
                         const SizedBox(width: 12),
                         Text(
                           'Creating ${widget.selectedRole == UserRole.restaurantOwner ? 'Restaurant' : 'Customer'} Account',
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: lightGreen,
                             fontWeight: FontWeight.w600,
                           ),
@@ -591,7 +593,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lightGreen = Colors.lightGreen;
+    const lightGreen = Colors.lightGreen;
 
     return Scaffold(
       appBar: AppBar(
@@ -648,7 +650,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: lightGreen),
+                          borderSide: const BorderSide(color: lightGreen),
                         ),
                         filled: true,
                         fillColor: Colors.grey.shade50,

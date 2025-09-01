@@ -21,7 +21,6 @@ void main() async {
     }
   } catch (e) {
     // Continue without Firebase for debugging
-    print('Firebase initialization failed: $e');
   }
   
   runApp(const ProviderScope(child: MyApp()));

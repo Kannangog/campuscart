@@ -22,8 +22,8 @@ class MenuManagementScreen extends ConsumerStatefulWidget {
 class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
   String _selectedCategory = 'All';
   final List<String> _categories = ['All', 'Appetizers', 'Main Course', 'Desserts', 'Beverages'];
-  File? _selectedImage;
   bool _isUploading = false;
+  bool _showTodaysSpecialOnly = false;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +53,35 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
         
         return Scaffold(
           backgroundColor: Colors.lightGreen[50],
+          appBar: AppBar(
+            title: Text('Menu Management', 
+              style: TextStyle(color: Colors.lightGreen[800], fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.lightGreen[50],
+            elevation: 0,
+            iconTheme: IconThemeData(color: Colors.lightGreen[800]),
+            actions: [
+              // Today's Special Toggle
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Row(
+                  children: [
+                    Text('Today\'s Special',
+                      style: TextStyle(color: Colors.lightGreen[800])),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: _showTodaysSpecialOnly,
+                      onChanged: (value) {
+                        setState(() {
+                          _showTodaysSpecialOnly = value;
+                        });
+                      },
+                      activeColor: Colors.lightGreen,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           body: Column(
             children: [
               // Category Filter
@@ -107,9 +136,15 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
               Expanded(
                 child: menuItems.when(
                   data: (items) {
-                    final filteredItems = _selectedCategory == 'All'
-                        ? items
-                        : items.where((item) => item.category == _selectedCategory).toList();
+                    // First filter by today's special if enabled
+                    var filteredItems = _showTodaysSpecialOnly
+                        ? items.where((item) => item.isTodaysSpecial).toList()
+                        : items;
+                    
+                    // Then filter by category
+                    filteredItems = _selectedCategory == 'All'
+                        ? filteredItems
+                        : filteredItems.where((item) => item.category == _selectedCategory).toList();
                     
                     if (filteredItems.isEmpty) {
                       return _buildEmptyMenu(context, restaurant.id);
@@ -124,7 +159,7 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                       },
                     );
                   },
-                  loading: () => Center(
+                  loading: () => const Center(
                     child: CircularProgressIndicator(
                       color: Colors.lightGreen,
                     ),
@@ -153,17 +188,19 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton(
+          floatingActionButton: FloatingActionButton.extended(
             onPressed: () => _showAddItemDialog(context, restaurant.id),
             backgroundColor: Colors.lightGreen,
             foregroundColor: Colors.white,
-            child: const Icon(Icons.add),
+            icon: const Icon(Icons.add),
+            label: const Text('Add Item'),
+            elevation: 4,
           ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
         );
       },
       loading: () => Scaffold(
         backgroundColor: Colors.lightGreen[50],
-        body: Center(
+        body: const Center(
           child: CircularProgressIndicator(color: Colors.lightGreen),
         ),
       ),
@@ -180,6 +217,11 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
   Widget _buildNoRestaurant(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.lightGreen[50],
+      appBar: AppBar(
+        backgroundColor: Colors.lightGreen[50],
+        elevation: 0,
+        iconTheme: IconThemeData(color: Colors.lightGreen[800]),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -242,7 +284,9 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
           const SizedBox(height: 12),
           
           Text(
-            'Add your first menu item to get started',
+            _showTodaysSpecialOnly
+                ? 'No items marked as "Today\'s Special"'
+                : 'Add your first menu item to get started',
             style: TextStyle(
               color: Colors.lightGreen[600],
               fontSize: 16,
@@ -252,24 +296,27 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
           
           const SizedBox(height: 32),
           
-          ElevatedButton(
-            onPressed: () => _showAddItemDialog(context, restaurantId),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.lightGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          if (!_showTodaysSpecialOnly)
+            ElevatedButton(
+              onPressed: () => _showAddItemDialog(context, restaurantId),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.lightGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-            ),
-            child: const Text('Add Menu Item'),
-          ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.3),
+              child: const Text('Add Menu Item'),
+            ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.3),
         ],
       ),
     );
   }
 
   Widget _buildMenuItemCard(BuildContext context, MenuItemModel item, int index) {
+    final hasSpecialOffer = item.specialOfferPrice != null && item.specialOfferPrice! > 0;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Card(
@@ -326,6 +373,48 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                       ),
                     ),
                   ),
+                  // Special offer badge
+                  if (hasSpecialOffer)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[700],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'OFFER',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Today's Special badge
+                  if (item.isTodaysSpecial)
+                    Positioned(
+                      bottom: 4,
+                      left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.purple[700],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'TODAY\'S SPECIAL',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
               
@@ -413,16 +502,47 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '₹${item.price.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Colors.lightGreen[800],
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (hasSpecialOffer)
+                              Text(
+                                '₹${item.price.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                            Text(
+                              hasSpecialOffer 
+                                ? '₹${item.specialOfferPrice!.toStringAsFixed(2)}' 
+                                : '₹${item.price.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: hasSpecialOffer ? Colors.amber[800] : Colors.lightGreen[800],
+                              ),
+                            ),
+                          ],
                         ),
                         Row(
                           children: [
+                            // Today's Special Toggle Button
+                            IconButton(
+                              onPressed: () {
+                                ref.read(menuManagementProvider.notifier)
+                                    .toggleTodaysSpecial(item.id, !item.isTodaysSpecial);
+                              },
+                              icon: Icon(
+                                item.isTodaysSpecial ? Icons.star : Icons.star_border,
+                                size: 22,
+                                color: item.isTodaysSpecial ? Colors.amber[700] : Colors.grey[600],
+                              ),
+                              tooltip: item.isTodaysSpecial 
+                                  ? 'Remove from Today\'s Special' 
+                                  : 'Add to Today\'s Special',
+                            ).animate().scale(duration: 200.ms),
                             IconButton(
                               onPressed: () => _showEditItemDialog(context, item),
                               icon: Icon(Icons.edit, size: 22, color: Colors.lightGreen[700]),
@@ -461,10 +581,14 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
     final nameController = TextEditingController(text: item?.name ?? '');
     final descriptionController = TextEditingController(text: item?.description ?? '');
     final priceController = TextEditingController(text: item?.price.toString() ?? '');
+    final specialOfferController = TextEditingController(
+      text: item?.specialOfferPrice != null ? item!.specialOfferPrice.toString() : '');
     String selectedCategory = item?.category ?? 'Main Course';
     bool isVegetarian = item?.isVegetarian ?? true;
     bool isVegan = item?.isVegan ?? false;
     bool isSpicy = item?.isSpicy ?? false;
+    bool isTodaysSpecial = item?.isTodaysSpecial ?? false;
+    bool hasSpecialOffer = item?.specialOfferPrice != null && item!.specialOfferPrice! > 0;
     String imageUrl = item?.imageUrl ?? '';
     File? selectedImage;
 
@@ -496,7 +620,7 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                           : CachedNetworkImage(
                               imageUrl: imageUrl,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Center(
+                              placeholder: (context, url) => const Center(
                                 child: CircularProgressIndicator(color: Colors.lightGreen),
                               ),
                               errorWidget: (context, url, error) => Icon(
@@ -515,11 +639,11 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                     labelStyle: TextStyle(color: Colors.lightGreen[700]),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen),
+                      borderSide: const BorderSide(color: Colors.lightGreen),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen, width: 2),
+                      borderSide: const BorderSide(color: Colors.lightGreen, width: 2),
                     ),
                   ),
                 ),
@@ -531,11 +655,11 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                     labelStyle: TextStyle(color: Colors.lightGreen[700]),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen),
+                      borderSide: const BorderSide(color: Colors.lightGreen),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen, width: 2),
+                      borderSide: const BorderSide(color: Colors.lightGreen, width: 2),
                     ),
                   ),
                   maxLines: 3,
@@ -549,14 +673,53 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                     prefixText: '₹',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen),
+                      borderSide: const BorderSide(color: Colors.lightGreen),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen, width: 2),
+                      borderSide: const BorderSide(color: Colors.lightGreen, width: 2),
                     ),
                   ),
                   keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CheckboxListTile(
+                        title: Text('Special Offer',
+                          style: TextStyle(color: Colors.lightGreen[700])),
+                        value: hasSpecialOffer,
+                        onChanged: (value) {
+                          setState(() {
+                            hasSpecialOffer = value ?? false;
+                          });
+                        },
+                        activeColor: Colors.lightGreen,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    if (hasSpecialOffer)
+                      Expanded(
+                        child: TextField(
+                          controller: specialOfferController,
+                          decoration: InputDecoration(
+                            labelText: 'Offer Price',
+                            labelStyle: TextStyle(color: Colors.lightGreen[700]),
+                            prefixText: '₹',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.lightGreen),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.lightGreen, width: 2),
+                            ),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -566,11 +729,11 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                     labelStyle: TextStyle(color: Colors.lightGreen[700]),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen),
+                      borderSide: const BorderSide(color: Colors.lightGreen),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.lightGreen, width: 2),
+                      borderSide: const BorderSide(color: Colors.lightGreen, width: 2),
                     ),
                   ),
                   items: _categories.skip(1).map((category) {
@@ -665,6 +828,19 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  title: Text('Today\'s Special',
+                    style: TextStyle(color: Colors.lightGreen[700])),
+                  value: isTodaysSpecial,
+                  onChanged: (value) {
+                    setState(() {
+                      isTodaysSpecial = value ?? false;
+                    });
+                  },
+                  activeColor: Colors.purple,
+                  contentPadding: EdgeInsets.zero,
+                ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () async {
@@ -713,6 +889,24 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
 
                 try {
                   final price = double.parse(priceController.text.trim());
+                  double? specialOfferPrice;
+                  
+                  if (hasSpecialOffer && specialOfferController.text.isNotEmpty) {
+                    specialOfferPrice = double.parse(specialOfferController.text.trim());
+                    if (specialOfferPrice >= price) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Special offer price must be less than regular price'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                  }
                   
                   String finalImageUrl = imageUrl;
                   
@@ -743,6 +937,7 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                       name: nameController.text.trim(),
                       description: descriptionController.text.trim(),
                       price: price,
+                      specialOfferPrice: specialOfferPrice,
                       imageUrl: finalImageUrl.isEmpty 
                           ? 'https://via.placeholder.com/300x200?text=Food+Image'
                           : finalImageUrl,
@@ -750,6 +945,7 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                       isVegetarian: isVegetarian,
                       isVegan: isVegan,
                       isSpicy: isSpicy,
+                      isTodaysSpecial: isTodaysSpecial,
                       isAvailable: true,
                       createdAt: DateTime.now(),
                       updatedAt: DateTime.now(),
@@ -764,10 +960,12 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                         'name': nameController.text.trim(),
                         'description': descriptionController.text.trim(),
                         'price': price,
+                        'specialOfferPrice': specialOfferPrice,
                         'category': selectedCategory,
                         'isVegetarian': isVegetarian,
                         'isVegan': isVegan,
                         'isSpicy': isSpicy,
+                        'isTodaysSpecial': isTodaysSpecial,
                         'imageUrl': finalImageUrl,
                         'updatedAt': DateTime.now(),
                       },

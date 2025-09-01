@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -38,7 +40,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lightGreen = Colors.lightGreen;
+    const lightGreen = Colors.lightGreen;
 
     return Scaffold(
       body: SafeArea(
@@ -144,12 +146,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         elevation: 5,
                         shadowColor: lightGreen.withOpacity(0.3),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.phone_rounded, size: 24),
-                          const SizedBox(width: 12),
-                          const Text(
+                          SizedBox(width: 12),
+                          Text(
                             'Continue with Phone',
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
@@ -284,7 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       padding: EdgeInsets.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: Text(
+                    child: const Text(
                       'Sign Up',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,

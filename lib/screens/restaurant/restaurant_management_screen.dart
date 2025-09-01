@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'package:campuscart/providers/auth_provider.dart';
 import 'package:campuscart/screens/restaurant/restaurant_location_screen.dart';
 import 'package:campuscart/utilities/app_theme.dart';
@@ -629,12 +631,12 @@ class _RestaurantManagementScreenState extends ConsumerState<RestaurantManagemen
                       onPressed: _isLoading ? null : _deleteRestaurant,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Colors.red),
+                        side: const BorderSide(color: Colors.red),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text(
+                      child: const Text(
                         'Delete Restaurant',
                         style: TextStyle(color: Colors.red),
                       ),

@@ -540,7 +540,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
         if (cartItem == null) {
           return ElevatedButton(
             onPressed: () {
-              ref.read(cartProvider.notifier).addItem(item, restaurantName);
+              ref.read(cartProvider.notifier).addItem(item, restaurantName, 1 as String);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('${item.name} added to cart!'),

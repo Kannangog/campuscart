@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:campuscart/providers/auth_provider.dart';
 import 'package:campuscart/utilities/app_theme.dart';
 import 'package:flutter/material.dart';

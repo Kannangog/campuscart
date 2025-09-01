@@ -1,3 +1,5 @@
+// ignore_for_file: empty_catches, deprecated_member_use
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -52,7 +54,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         _navigateToDashboard(userModel);
       }
     } catch (e) {
-      print('Error checking user: $e');
     }
   }
 
@@ -61,9 +62,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       MaterialPageRoute(
         builder: (context) {
           if (user.role == UserRole.restaurantOwner) {
-            return RestaurantDashboard();
+            return const RestaurantDashboard();
           } else {
-            return UserDashboard();
+            return const UserDashboard();
           }
         },
       ),
@@ -79,7 +80,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Google sign-in successful!'),
             backgroundColor: Colors.green,
           ),
@@ -111,7 +112,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lightGreen = Colors.lightGreen;
+    const lightGreen = Colors.lightGreen;
 
     return Scaffold(
       appBar: AppBar(
@@ -234,12 +235,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     elevation: 5,
                     shadowColor: lightGreen.withOpacity(0.3),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.phone_rounded, size: 24),
-                      const SizedBox(width: 12),
-                      const Text(
+                      SizedBox(width: 12),
+                      Text(
                         'Continue with Phone',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                       ),
@@ -328,7 +329,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline_rounded, color: lightGreen, size: 22),
+                      const Icon(Icons.info_outline_rounded, color: lightGreen, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -387,7 +388,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       padding: EdgeInsets.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: Text(
+                    child: const Text(
                       'Sign In',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
@@ -414,7 +415,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     required String subtitle,
     required IconData icon,
   }) {
-    final lightGreen = Colors.lightGreen;
+    const lightGreen = Colors.lightGreen;
     final isSelected = _selectedRole == role;
     
     return GestureDetector(

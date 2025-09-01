@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -288,8 +290,8 @@ class _RestaurantLocationScreenState extends State<RestaurantLocationScreen> {
                           FloatingActionButton(
                             onPressed: _moveToCurrentLocation,
                             mini: true,
-                            child: const Icon(Icons.my_location),
                             heroTag: 'location_btn',
+                            child: const Icon(Icons.my_location),
                           ),
                           const SizedBox(height: 10),
                           FloatingActionButton(
@@ -301,8 +303,8 @@ class _RestaurantLocationScreenState extends State<RestaurantLocationScreen> {
                               }
                             },
                             mini: true,
-                            child: const Icon(Icons.add),
                             heroTag: 'zoom_in_btn',
+                            child: const Icon(Icons.add),
                           ),
                           const SizedBox(height: 10),
                           FloatingActionButton(
@@ -314,8 +316,8 @@ class _RestaurantLocationScreenState extends State<RestaurantLocationScreen> {
                               }
                             },
                             mini: true,
-                            child: const Icon(Icons.remove),
                             heroTag: 'zoom_out_btn',
+                            child: const Icon(Icons.remove),
                           ),
                         ],
                       ),

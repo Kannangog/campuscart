@@ -1,4 +1,6 @@
 // support_screen.dart
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:campuscart/utilities/app_theme.dart';
@@ -58,12 +60,12 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onBackground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 16),
             
-            ..._faqs.map((faq) => _buildFAQItem(theme, faq)).toList(),
+            ..._faqs.map((faq) => _buildFAQItem(theme, faq)),
             
             const SizedBox(height: 24),
             Text(
@@ -71,7 +73,7 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onBackground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 16),
@@ -119,7 +121,7 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onBackground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 16),
@@ -141,7 +143,7 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
           faq['question'],
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: theme.colorScheme.onBackground,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         children: [
