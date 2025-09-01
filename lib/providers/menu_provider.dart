@@ -13,6 +13,16 @@ final menuItemsProvider = StreamProvider.family<List<MenuItemModel>, String>((re
           .toList());
 });
 
+final allMenuItemsProvider = StreamProvider.family<List<MenuItemModel>, String>((ref, restaurantId) {
+  return FirebaseFirestore.instance
+      .collection('menuItems')
+      .where('restaurantId', isEqualTo: restaurantId)
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+          .map((doc) => MenuItemModel.fromFirestore(doc))
+          .toList());
+});
+
 final menuItemProvider = StreamProvider.family<MenuItemModel?, String>((ref, menuItemId) {
   return FirebaseFirestore.instance
       .collection('menuItems')
@@ -76,12 +86,16 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       
-      updates['updatedAt'] = Timestamp.fromDate(DateTime.now());
+      // Convert DateTime to Timestamp for Firestore
+      final updatedUpdates = Map<String, dynamic>.from(updates);
+      if (updatedUpdates.containsKey('updatedAt') && updatedUpdates['updatedAt'] is DateTime) {
+        updatedUpdates['updatedAt'] = Timestamp.fromDate(updatedUpdates['updatedAt']);
+      }
       
       await _firestore
           .collection('menuItems')
           .doc(menuItemId)
-          .update(updates);
+          .update(updatedUpdates);
       
       state = const AsyncValue.data(null);
     } catch (e) {

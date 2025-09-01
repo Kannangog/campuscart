@@ -38,6 +38,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lightGreen = Colors.lightGreen;
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -58,14 +60,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.secondary,
+                          lightGreen,
+                          lightGreen.shade700,
                         ],
                       ),
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
                         BoxShadow(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                          color: lightGreen.withOpacity(0.3),
                           blurRadius: 15,
                           offset: const Offset(0, 5),
                         ),
@@ -87,11 +89,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     'CampusCart',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: lightGreen,
                       shadows: [
                         Shadow(
                           blurRadius: 10,
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          color: lightGreen.withOpacity(0.2),
                           offset: const Offset(0, 2),
                         ),
                       ],
@@ -137,10 +139,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        backgroundColor: lightGreen,
                         foregroundColor: Colors.white,
                         elevation: 5,
-                        shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                        shadowColor: lightGreen.withOpacity(0.3),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -286,7 +288,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       'Sign Up',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: lightGreen,
                         fontSize: 14,
                       ),
                     ),

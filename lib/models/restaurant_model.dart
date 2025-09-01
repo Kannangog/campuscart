@@ -44,7 +44,7 @@ class RestaurantModel {
     this.isApproved = false,
     required this.createdAt,
     required this.updatedAt,
-    required this.email,
+    required this.email, required int totalReviews,
   });
 
   factory RestaurantModel.fromFirestore(DocumentSnapshot doc) {
@@ -70,7 +70,7 @@ class RestaurantModel {
       isApproved: data['isApproved'] ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      email: data['email']?.toString() ?? '',
+      email: data['email']?.toString() ?? '', totalReviews: (data['totalReviews'] ?? 0).toInt(),
     );
   }
 
@@ -121,6 +121,7 @@ class RestaurantModel {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? email,
+    int? totalReviews,
   }) {
     return RestaurantModel(
       id: id ?? this.id,
@@ -144,6 +145,7 @@ class RestaurantModel {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       email: email ?? this.email,
+      totalReviews: totalReviews ?? 0,
     );
   }
 
@@ -169,7 +171,7 @@ class RestaurantModel {
       isApproved: false,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
-      email: '',
+      email: '', totalReviews: 0,
     );
   }
 

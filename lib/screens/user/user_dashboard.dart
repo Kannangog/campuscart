@@ -14,8 +14,11 @@ class UserDashboard extends ConsumerStatefulWidget {
   ConsumerState<UserDashboard> createState() => _UserDashboardState();
 }
 
-class _UserDashboardState extends ConsumerState<UserDashboard> {
+class _UserDashboardState extends ConsumerState<UserDashboard>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -26,6 +29,25 @@ class _UserDashboardState extends ConsumerState<UserDashboard> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
 
@@ -34,41 +56,101 @@ class _UserDashboardState extends ConsumerState<UserDashboard> {
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_outlined),
-            activeIcon: Icon(Icons.restaurant),
-            label: 'Restaurants',
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+                _animationController.reset();
+                _animationController.forward();
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFF4CAF50), // Light green
+            unselectedItemColor: Colors.grey[600],
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 12,
+            ),
+            items: [
+              BottomNavigationBarItem(
+                icon: ScaleTransition(
+                  scale: _currentIndex == 0 ? _animation : AlwaysStoppedAnimation(1.0),
+                  child: const Icon(Icons.home_outlined),
+                ),
+                activeIcon: ScaleTransition(
+                  scale: _animation,
+                  child: const Icon(Icons.home),
+                ),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: ScaleTransition(
+                  scale: _currentIndex == 1 ? _animation : AlwaysStoppedAnimation(1.0),
+                  child: const Icon(Icons.restaurant_outlined),
+                ),
+                activeIcon: ScaleTransition(
+                  scale: _animation,
+                  child: const Icon(Icons.restaurant),
+                ),
+                label: 'Restaurants',
+              ),
+              BottomNavigationBarItem(
+                icon: ScaleTransition(
+                  scale: _currentIndex == 2 ? _animation : AlwaysStoppedAnimation(1.0),
+                  child: _buildCartIcon(Icons.shopping_cart_outlined, cartState.totalItems),
+                ),
+                activeIcon: ScaleTransition(
+                  scale: _animation,
+                  child: _buildCartIcon(Icons.shopping_cart, cartState.totalItems),
+                ),
+                label: 'Cart',
+              ),
+              BottomNavigationBarItem(
+                icon: ScaleTransition(
+                  scale: _currentIndex == 3 ? _animation : AlwaysStoppedAnimation(1.0),
+                  child: const Icon(Icons.receipt_long_outlined),
+                ),
+                activeIcon: ScaleTransition(
+                  scale: _animation,
+                  child: const Icon(Icons.receipt_long),
+                ),
+                label: 'Orders',
+              ),
+              BottomNavigationBarItem(
+                icon: ScaleTransition(
+                  scale: _currentIndex == 4 ? _animation : AlwaysStoppedAnimation(1.0),
+                  child: const Icon(Icons.person_outlined),
+                ),
+                activeIcon: ScaleTransition(
+                  scale: _animation,
+                  child: const Icon(Icons.person),
+                ),
+                label: 'Profile',
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: _buildCartIcon(Icons.shopping_cart_outlined, cartState.totalItems),
-            activeIcon: _buildCartIcon(Icons.shopping_cart, cartState.totalItems),
-            label: 'Cart',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long_outlined),
-            activeIcon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person_outlined),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -80,17 +162,24 @@ class _UserDashboardState extends ConsumerState<UserDashboard> {
         Icon(icon),
         if (itemCount > 0)
           Positioned(
-            top: -4,
-            right: -4,
+            top: -6,
+            right: -6,
             child: Container(
               padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.red,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF6B6B), // Complementary red color
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               constraints: const BoxConstraints(
-                minWidth: 16,
-                minHeight: 16,
+                minWidth: 18,
+                minHeight: 18,
               ),
               child: Text(
                 itemCount > 9 ? '9+' : '$itemCount',

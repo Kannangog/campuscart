@@ -42,15 +42,15 @@ class MenuItemModel {
   });
 
   factory MenuItemModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
     return MenuItemModel(
       id: doc.id,
-      restaurantId: data['restaurantId'] ?? '',
-      name: data['name'] ?? '',
-      description: data['description'] ?? '',
+      restaurantId: data['restaurantId']?.toString() ?? '',
+      name: data['name']?.toString() ?? '',
+      description: data['description']?.toString() ?? '',
       price: (data['price'] ?? 0.0).toDouble(),
-      imageUrl: data['imageUrl'] ?? '',
-      category: data['category'] ?? '',
+      imageUrl: data['imageUrl']?.toString() ?? '',
+      category: data['category']?.toString() ?? 'Main Course',
       isAvailable: data['isAvailable'] ?? true,
       isVegetarian: data['isVegetarian'] ?? false,
       isVegan: data['isVegan'] ?? false,
@@ -60,8 +60,8 @@ class MenuItemModel {
       rating: (data['rating'] ?? 0.0).toDouble(),
       reviewCount: data['reviewCount'] ?? 0,
       orderCount: data['orderCount'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

@@ -206,6 +206,8 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lightGreen = Colors.lightGreen;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Phone Verification'),
@@ -229,7 +231,7 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
                   'Enter your phone number',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: lightGreen,
                   ),
                 )
                 .animate()
@@ -332,10 +334,10 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      color: lightGreen.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                        color: lightGreen.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
@@ -344,14 +346,14 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
                           widget.selectedRole == UserRole.restaurantOwner 
                               ? Icons.restaurant 
                               : Icons.person,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: lightGreen,
                           size: 20,
                         ),
                         const SizedBox(width: 12),
                         Text(
                           'Creating ${widget.selectedRole == UserRole.restaurantOwner ? 'Restaurant' : 'Customer'} Account',
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
+                            color: lightGreen,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -374,10 +376,10 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      backgroundColor: lightGreen,
                       foregroundColor: Colors.white,
                       elevation: 5,
-                      shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                      shadowColor: lightGreen.withOpacity(0.3),
                     ),
                     child: _isLoading
                         ? const SizedBox(
@@ -589,6 +591,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lightGreen = Colors.lightGreen;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Verify OTP'),
@@ -609,7 +613,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 'Enter verification code',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: lightGreen,
                 ),
               ),
               
@@ -644,7 +648,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+                          borderSide: BorderSide(color: lightGreen),
                         ),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -667,7 +671,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    backgroundColor: lightGreen,
                     foregroundColor: Colors.white,
                     elevation: 3,
                   ),
@@ -710,7 +714,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                         _resendEnabled ? 'Resend OTP' : 'Resend in $_resendCountdown seconds',
                         style: TextStyle(
                           color: _resendEnabled 
-                              ? Theme.of(context).colorScheme.primary 
+                              ? lightGreen 
                               : Colors.grey.shade500,
                           fontWeight: FontWeight.w600,
                         ),

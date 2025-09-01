@@ -61,68 +61,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       MaterialPageRoute(
         builder: (context) {
           if (user.role == UserRole.restaurantOwner) {
-            if (user.isApproved) {
-              return RestaurantDashboard();
-            } else {
-              return _buildWaitingForApprovalScreen();
-            }
+            return RestaurantDashboard();
           } else {
             return UserDashboard();
           }
         },
       ),
       (route) => false,
-    );
-  }
-
-  Widget _buildWaitingForApprovalScreen() {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Approval Pending'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.hourglass_empty,
-                size: 64,
-                color: Colors.orange.shade600,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Waiting for Approval',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade800,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Your restaurant account is pending admin approval. '
-                'You will be able to access your dashboard once approved.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: () {
-                  ref.read(authProvider.notifier).signOut();
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Sign Out'),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -135,9 +80,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_selectedRole == UserRole.restaurantOwner
-                ? 'Google sign-in successful! Please wait for admin approval.'
-                : 'Google sign-in successful!'),
+            content: Text('Google sign-in successful!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -168,6 +111,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lightGreen = Colors.lightGreen;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Account'),
@@ -189,11 +134,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 'Join CampusCart',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: lightGreen,
                   shadows: [
                     Shadow(
                       blurRadius: 10,
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                      color: lightGreen.withOpacity(0.2),
                       offset: const Offset(0, 2),
                     ),
                   ],
@@ -284,10 +229,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    backgroundColor: lightGreen,
                     foregroundColor: Colors.white,
                     elevation: 5,
-                    shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                    shadowColor: lightGreen.withOpacity(0.3),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -365,17 +310,17 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               
               const SizedBox(height: 32),
               
-              // Restaurant approval notice with improved styling
+              // Restaurant notice with improved styling
               if (_selectedRole == UserRole.restaurantOwner)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
+                    color: lightGreen.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.shade200, width: 1.5),
+                    border: Border.all(color: lightGreen.withOpacity(0.3), width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.orange.shade100.withOpacity(0.3),
+                        color: lightGreen.withOpacity(0.1),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -383,13 +328,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline_rounded, color: Colors.orange.shade600, size: 22),
+                      Icon(Icons.info_outline_rounded, color: lightGreen, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Restaurant accounts require admin approval before you can access your dashboard.',
+                          'You can create your restaurant profile after signing up.',
                           style: TextStyle(
-                            color: Colors.orange.shade800,
+                            color: lightGreen.shade800,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -446,7 +391,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       'Sign In',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: lightGreen,
                         fontSize: 14,
                       ),
                     ),
@@ -469,6 +414,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     required String subtitle,
     required IconData icon,
   }) {
+    final lightGreen = Colors.lightGreen;
     final isSelected = _selectedRole == role;
     
     return GestureDetector(
@@ -478,19 +424,19 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected 
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+              ? lightGreen.withOpacity(0.1)
               : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected 
-                ? Theme.of(context).colorScheme.primary
+                ? lightGreen
                 : Colors.grey.shade300,
             width: isSelected ? 2 : 1.5,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                    color: lightGreen.withOpacity(0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -509,7 +455,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               icon,
               size: 32,
               color: isSelected 
-                  ? Theme.of(context).colorScheme.primary
+                  ? lightGreen
                   : Colors.grey.shade600,
             ),
             const SizedBox(height: 8),
@@ -519,7 +465,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 fontWeight: FontWeight.w600,
                 fontSize: 15,
                 color: isSelected 
-                    ? Theme.of(context).colorScheme.primary
+                    ? lightGreen
                     : Colors.grey.shade800,
               ),
             ),
