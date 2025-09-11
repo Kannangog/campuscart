@@ -240,11 +240,11 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    order.userName,
+                    order.customerName,
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                   Text(
-                    order.userPhone,
+                    order.customerPhone ?? '',
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                   
@@ -382,7 +382,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
     ).animate().fadeIn(delay: (index * 100).ms).slideY(begin: 0.3);
   }
 
-  Widget _buildStatusChip(OrderStatus status, dynamic order) {
+  Widget _buildStatusChip(OrderStatus status, OrderModel order) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -390,7 +390,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        order.formattedStatus,
+        _getStatusText(status),
         style: TextStyle(
           color: _getStatusColor(status),
           fontSize: 12,
@@ -506,9 +506,8 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         return Colors.green;
       case OrderStatus.cancelled:
         return Colors.red;
-      case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+      default:
+        return Colors.grey;
     }
   }
 
@@ -528,9 +527,8 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         return Icons.check_circle_outline;
       case OrderStatus.cancelled:
         return Icons.cancel;
-      case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+      default:
+        return Icons.error;
     }
   }
 
@@ -550,9 +548,8 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         return 'Delivered';
       case OrderStatus.cancelled:
         return 'Cancelled';
-      case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+      default:
+        return 'Unknown';
     }
   }
 }

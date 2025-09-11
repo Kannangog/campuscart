@@ -7,7 +7,7 @@ enum OrderStatus {
   ready,
   outForDelivery,
   delivered,
-  cancelled, delerved
+  cancelled, delerved, readyForDelivery
 }
 
 class OrderItem {
@@ -322,6 +322,9 @@ class OrderModel {
       case OrderStatus.delivered:
         // TODO: Handle this case.
         throw UnimplementedError();
+      case OrderStatus.readyForDelivery:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -339,4 +342,12 @@ class OrderModel {
     final now = DateTime.now();
     return now.difference(deliveredAt!).inHours >= 1;
   }
+
+  get customerName => null;
+
+  String? get customerPhone => null;
+
+  get deliveryInstructions => null;
+
+  get totalAmount => null;
 }

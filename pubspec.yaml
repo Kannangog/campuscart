@@ -52,6 +52,7 @@ dependencies:
   cupertino_icons: ^1.0.6
   flutter_cache_manager: ^3.4.1
   path: ^1.9.1
+  flutter_launcher_icons: ^0.13.1 
 
 dev_dependencies:
   flutter_test:
@@ -69,3 +70,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/Icons/app_icon.jpg"

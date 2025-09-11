@@ -306,6 +306,9 @@ class OrdersScreen extends ConsumerWidget {
       case OrderStatus.delerved:
         // TODO: Handle this case.
         throw UnimplementedError();
+      case OrderStatus.readyForDelivery:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
 
     return Container(
