@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'analytics_screen.dart';
 import 'menu_management_screen.dart';
 import 'orders_management_screen.dart';
-import 'offers_screen.dart';
+import 'oders_location.dart';
 import 'restaurant_profile.dart';// Import the notifications screen
 
 class RestaurantDashboard extends ConsumerStatefulWidget {
@@ -25,7 +25,7 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
     const AnalyticsScreen(),
     const MenuManagementScreen(),
     const OrdersManagementScreen(),
-    const OffersScreen(),
+    const OrdersLocation(),
     const RestaurantProfileScreen(),
   ];
 
@@ -131,10 +131,10 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
               icon: _AnimatedNavIcon(
                 index: 3,
                 currentIndex: _currentIndex,
-                icon: Icons.local_offer_outlined,
-                activeIcon: Icons.local_offer,
+                icon: Icons.location_on_outlined,
+                activeIcon: Icons.location_on,
               ),
-              label: 'Offers',
+              label: 'Location',
             ),
             NavigationDestination(
               icon: _AnimatedNavIcon(
@@ -156,32 +156,14 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
       0: 'Analytics Dashboard',
       1: 'Menu Management',
       2: 'Orders Management',
-      3: 'Offers & Promotions',
+      3: 'Orders Location',
     };
 
+    // Removed the actions for screens 1, 2, and 3 as requested
     final Map<int, List<Widget>> actions = {
-      1: [
-        FloatingActionButton(
-          onPressed: () {},
-          backgroundColor: Colors.lightGreen,
-          mini: true,
-          child: const Icon(Icons.add, color: Colors.white),
-        )
-      ],
-      2: [
-        IconButton(
-          icon: const Icon(Icons.filter_list),
-          onPressed: () {},
-        )
-      ],
-      3: [
-        FloatingActionButton(
-          onPressed: () {},
-          backgroundColor: Colors.lightGreen,
-          mini: true,
-          child: const Icon(Icons.add, color: Colors.white),
-        )
-      ],
+      // No actions for Menu Management (screen 1)
+      // No actions for Orders Management (screen 2)
+      // No actions for Orders Location (screen 3)
     };
 
     return AppBar(
@@ -201,7 +183,10 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
         ),
       ),
       actions: [
+        // Only show actions if they exist for the current screen
         if (actions.containsKey(_currentIndex)) ...actions[_currentIndex]!,
+        
+        // Notification icon (always shown except on profile screen)
         IconButton(
           icon: Stack(
             children: [

@@ -7,7 +7,7 @@ enum OrderStatus {
   ready,
   outForDelivery,
   delivered,
-  cancelled, delerved
+  cancelled, readyForDelivery, delerved
 }
 
 class OrderItem {
@@ -127,8 +127,9 @@ class OrderModel {
     // Parse order status
     OrderStatus status;
     try {
+      final statusString = data['status']?.toString() ?? 'pending';
       status = OrderStatus.values.firstWhere(
-        (e) => e.toString() == 'OrderStatus.${data['status']}',
+        (e) => e.toString() == 'OrderStatus.$statusString',
         orElse: () => OrderStatus.pending,
       );
     } catch (e) {
@@ -315,21 +316,24 @@ class OrderModel {
         return 'Ready for Pickup';
       case OrderStatus.outForDelivery:
         return 'Out for Delivery';
-      case OrderStatus.delerved:
+      case OrderStatus.delivered:
         return 'Delivered';
       case OrderStatus.cancelled:
         return 'Cancelled';
-      case OrderStatus.delivered:
+      case OrderStatus.readyForDelivery:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case OrderStatus.delerved:
         // TODO: Handle this case.
         throw UnimplementedError();
     }
   }
 
-  String get formattedTotal => '₹${total.toStringAsFixed(2)}';
-  String get formattedSubtotal => '₹${subtotal.toStringAsFixed(2)}';
-  String get formattedDeliveryFee => '₹${deliveryFee.toStringAsFixed(2)}';
-  String get formattedTax => '₹${tax.toStringAsFixed(2)}';
-  String get formattedDiscount => '₹${discount.toStringAsFixed(2)}';
+  String get formattedTotal => '\$${total.toStringAsFixed(2)}';
+  String get formattedSubtotal => '\$${subtotal.toStringAsFixed(2)}';
+  String get formattedDeliveryFee => '\$${deliveryFee.toStringAsFixed(2)}';
+  String get formattedTax => '\$${tax.toStringAsFixed(2)}';
+  String get formattedDiscount => '\$${discount.toStringAsFixed(2)}';
 
   int get totalItems => items.fold(0, (int sum, OrderItem item) => sum + item.quantity);
 

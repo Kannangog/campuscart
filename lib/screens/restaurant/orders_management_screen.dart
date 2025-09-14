@@ -509,6 +509,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       case OrderStatus.delerved:
         // TODO: Handle this case.
         throw UnimplementedError();
+      case OrderStatus.readyForDelivery:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -531,6 +534,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       case OrderStatus.delerved:
         // TODO: Handle this case.
         throw UnimplementedError();
+      case OrderStatus.readyForDelivery:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -551,6 +557,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       case OrderStatus.cancelled:
         return 'Cancelled';
       case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case OrderStatus.readyForDelivery:
         // TODO: Handle this case.
         throw UnimplementedError();
     }
