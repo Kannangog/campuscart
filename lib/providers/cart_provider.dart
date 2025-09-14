@@ -25,6 +25,17 @@ class CartItem {
       specialInstructions: specialInstructions ?? this.specialInstructions,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CartItem &&
+        other.menuItem.id == menuItem.id &&
+        other.specialInstructions == specialInstructions;
+  }
+
+  @override
+  int get hashCode => Object.hash(menuItem.id, specialInstructions);
 }
 
 class CartState {
@@ -44,6 +55,8 @@ class CartState {
   int get totalItems => items.fold(0, (sum, item) => sum + item.quantity);
   bool get isEmpty => items.isEmpty;
   bool get hasItems => items.isNotEmpty;
+  int get length => items.length; // Fixed: Return actual length
+  bool get isNotEmpty => items.isNotEmpty; // Fixed: Return actual boolean value
 
   CartState copyWith({
     List<CartItem>? items,
@@ -67,7 +80,7 @@ final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {
 class CartNotifier extends StateNotifier<CartState> {
   CartNotifier() : super(CartState());
 
-  void addItem(MenuItemModel menuItem, String restaurantName, String restaurantImage, {String? specialInstructions}) {
+  void addItem(MenuItemModel menuItem, String restaurantName, String s, {String? specialInstructions}) {
     // If cart has items from different restaurant, clear it first
     if (state.restaurantId != null && state.restaurantId != menuItem.restaurantId) {
       clearCart();
@@ -96,8 +109,8 @@ class CartNotifier extends StateNotifier<CartState> {
     state = state.copyWith(
       items: updatedItems,
       restaurantId: menuItem.restaurantId,
-      restaurantName: restaurantName,
-      restaurantImage: restaurantImage,
+      restaurantName: menuItem.restaurantName, // Added restaurant name
+      restaurantImage: menuItem.restaurantImage, // Added restaurant image
     );
   }
 
@@ -175,7 +188,6 @@ class CartNotifier extends StateNotifier<CartState> {
   }
 
   double calculateDeliveryFee() {
-    // This could be dynamic based on distance, restaurant, order value, etc.
     if (state.isEmpty) return 0.0;
     
     // Example: Free delivery for orders above ₹300, otherwise ₹40
@@ -196,7 +208,6 @@ class CartNotifier extends StateNotifier<CartState> {
   }
 
   double calculateDiscount() {
-    // Calculate total discount from special offers
     double discount = 0.0;
     for (final item in state.items) {
       if (item.menuItem.specialOfferPrice != null) {
@@ -216,7 +227,6 @@ class CartNotifier extends StateNotifier<CartState> {
     state = newCart;
   }
 
-  // Helper method to get cart item by ID and special instructions
   CartItem? getCartItem(String menuItemId, {String? specialInstructions}) {
     try {
       return state.items.firstWhere(
@@ -227,7 +237,6 @@ class CartNotifier extends StateNotifier<CartState> {
     }
   }
 
-  // Check if an item with the same special instructions already exists
   bool hasItemWithSameInstructions(String menuItemId, String specialInstructions) {
     return state.items.any(
       (item) => item.menuItem.id == menuItemId && item.specialInstructions == specialInstructions,

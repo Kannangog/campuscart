@@ -21,6 +21,9 @@ class MenuItemModel {
   final int orderCount;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String restaurantImage;
+  final String restaurantName;
+  final List<Review>? reviews;
 
   MenuItemModel({
     required this.id,
@@ -43,19 +46,51 @@ class MenuItemModel {
     this.orderCount = 0,
     required this.createdAt,
     required this.updatedAt,
+    this.restaurantImage = '',
+    this.restaurantName = '',
+    this.reviews,
   });
 
   factory MenuItemModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+    
+    // Handle specialOfferPrice conversion safely
+    double? specialOfferPrice;
+    final specialOfferData = data['specialOfferPrice'];
+    if (specialOfferData != null) {
+      if (specialOfferData is double) {
+        specialOfferPrice = specialOfferData;
+      } else if (specialOfferData is int) {
+        specialOfferPrice = specialOfferData.toDouble();
+      } else if (specialOfferData is String) {
+        specialOfferPrice = double.tryParse(specialOfferData);
+      }
+    }
+
+    // Handle reviews list
+    List<Review>? reviews;
+    final reviewsData = data['reviews'];
+    if (reviewsData is List) {
+      reviews = reviewsData.map((reviewData) {
+        if (reviewData is Map<String, dynamic>) {
+          return Review.fromMap(reviewData);
+        }
+        return Review(
+          userName: 'Unknown',
+          rating: 0.0,
+          comment: '',
+          date: 'Unknown date',
+        );
+      }).toList();
+    }
+
     return MenuItemModel(
       id: doc.id,
       restaurantId: data['restaurantId']?.toString() ?? '',
       name: data['name']?.toString() ?? '',
       description: data['description']?.toString() ?? '',
-      price: (data['price'] ?? 0.0).toDouble(),
-      specialOfferPrice: data['specialOfferPrice'] != null 
-          ? (data['specialOfferPrice']).toDouble() 
-          : null,
+      price: _parseDouble(data['price'], 0.0),
+      specialOfferPrice: specialOfferPrice,
       imageUrl: data['imageUrl']?.toString() ?? '',
       category: data['category']?.toString() ?? 'Main Course',
       isAvailable: data['isAvailable'] ?? true,
@@ -64,13 +99,34 @@ class MenuItemModel {
       isSpicy: data['isSpicy'] ?? false,
       isTodaysSpecial: data['isTodaysSpecial'] ?? false,
       allergens: List<String>.from(data['allergens'] ?? []),
-      preparationTime: data['preparationTime'] ?? 15,
-      rating: (data['rating'] ?? 0.0).toDouble(),
-      reviewCount: data['reviewCount'] ?? 0,
-      orderCount: data['orderCount'] ?? 0,
+      preparationTime: _parseInt(data['preparationTime'], 15),
+      rating: _parseDouble(data['rating'], 0.0),
+      reviewCount: _parseInt(data['reviewCount'], 0),
+      orderCount: _parseInt(data['orderCount'], 0),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      restaurantImage: data['restaurantImage']?.toString() ?? '',
+      restaurantName: data['restaurantName']?.toString() ?? '',
+      reviews: reviews,
     );
+  }
+
+  // Helper method to parse double safely
+  static double _parseDouble(dynamic value, double defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? defaultValue;
+    return defaultValue;
+  }
+
+  // Helper method to parse int safely
+  static int _parseInt(dynamic value, int defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    return defaultValue;
   }
 
   Map<String, dynamic> toFirestore() {
@@ -94,6 +150,9 @@ class MenuItemModel {
       'orderCount': orderCount,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'restaurantImage': restaurantImage,
+      'restaurantName': restaurantName,
+      'reviews': reviews?.map((review) => review.toMap()).toList(),
     };
   }
 
@@ -115,6 +174,9 @@ class MenuItemModel {
     int? reviewCount,
     int? orderCount,
     DateTime? updatedAt,
+    String? restaurantImage,
+    String? restaurantName,
+    List<Review>? reviews,
   }) {
     return MenuItemModel(
       id: id,
@@ -137,6 +199,74 @@ class MenuItemModel {
       orderCount: orderCount ?? this.orderCount,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      restaurantImage: restaurantImage ?? this.restaurantImage,
+      restaurantName: restaurantName ?? this.restaurantName,
+      reviews: reviews ?? this.reviews,
     );
+  }
+
+  // Getter for discounted price
+  double get discountedPrice => specialOfferPrice ?? price;
+
+  // Check if item is on sale
+  bool get isOnSale => specialOfferPrice != null && specialOfferPrice! < price;
+
+  // Calculate discount percentage
+  double get discountPercentage {
+    if (!isOnSale) return 0.0;
+    return ((price - specialOfferPrice!) / price * 100).roundToDouble();
+  }
+
+  // Get preparation time as formatted string
+  String get preparationTimeFormatted => '$preparationTime min';
+
+  // Get rating as formatted string
+  String get ratingFormatted => rating.toStringAsFixed(1);
+
+  // Check if item is popular (based on order count)
+  bool get isPopular => orderCount > 50;
+
+  // Check if item is new (created within last 7 days)
+  bool get isNew => DateTime.now().difference(createdAt).inDays <= 7;
+}
+
+// Review class with proper serialization
+class Review {
+  final String userName;
+  final double rating;
+  final String comment;
+  final String date;
+  final String? userId;
+  final String? userImage;
+
+  Review({
+    required this.userName,
+    required this.rating,
+    required this.comment,
+    required this.date,
+    this.userId,
+    this.userImage,
+  });
+
+  factory Review.fromMap(Map<String, dynamic> map) {
+    return Review(
+      userName: map['userName']?.toString() ?? 'Unknown',
+      rating: (map['rating'] ?? 0.0).toDouble(),
+      comment: map['comment']?.toString() ?? '',
+      date: map['date']?.toString() ?? 'Unknown date',
+      userId: map['userId']?.toString(),
+      userImage: map['userImage']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userName': userName,
+      'rating': rating,
+      'comment': comment,
+      'date': date,
+      'userId': userId,
+      'userImage': userImage,
+    };
   }
 }

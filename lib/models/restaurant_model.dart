@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
 class RestaurantModel {
   final String id;
@@ -25,6 +26,7 @@ class RestaurantModel {
   final DateTime updatedAt;
   final String email;
   final int totalReviews;
+  final bool isFeatured;
 
   RestaurantModel({
     required this.id,
@@ -50,10 +52,23 @@ class RestaurantModel {
     required this.updatedAt,
     required this.email,
     this.totalReviews = 0,
+    this.isFeatured = false,
   });
 
   factory RestaurantModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+    
+    // Parse opening hours safely
+    Map<String, String> parsedOpeningHours = {};
+    final openingHoursData = data['openingHours'];
+    if (openingHoursData is Map) {
+      openingHoursData.forEach((key, value) {
+        if (key is String && value is String) {
+          parsedOpeningHours[key] = value;
+        }
+      });
+    }
+
     return RestaurantModel(
       id: doc.id,
       name: data['name']?.toString() ?? '',
@@ -61,24 +76,42 @@ class RestaurantModel {
       ownerId: data['ownerId']?.toString() ?? '',
       imageUrl: data['imageUrl']?.toString() ?? '',
       address: data['address']?.toString() ?? '',
-      latitude: (data['latitude'] ?? 0.0).toDouble(),
-      longitude: (data['longitude'] ?? 0.0).toDouble(),
+      latitude: _parseDouble(data['latitude'], 0.0),
+      longitude: _parseDouble(data['longitude'], 0.0),
       phoneNumber: data['phoneNumber']?.toString() ?? '',
       categories: List<String>.from(data['categories'] ?? []),
-      rating: (data['rating'] ?? 0.0).toDouble(),
-      reviewCount: (data['reviewCount'] ?? 0).toInt(),
+      rating: _parseDouble(data['rating'], 0.0),
+      reviewCount: _parseInt(data['reviewCount'], 0),
       isOpen: data['isOpen'] ?? true,
-      openingHours: Map<String, String>.from(data['openingHours'] ?? {}),
-      deliveryFee: (data['deliveryFee'] ?? 0.0).toDouble(),
-      estimatedDeliveryTime: (data['estimatedDeliveryTime'] ?? 30).toInt(),
-      preparationTime: (data['preparationTime'] ?? 15).toInt(),
-      minimumOrder: (data['minimumOrder'] ?? 0.0).toDouble(),
+      openingHours: parsedOpeningHours,
+      deliveryFee: _parseDouble(data['deliveryFee'], 0.0),
+      estimatedDeliveryTime: _parseInt(data['estimatedDeliveryTime'], 30),
+      preparationTime: _parseInt(data['preparationTime'], 15),
+      minimumOrder: _parseDouble(data['minimumOrder'], 0.0),
       isApproved: data['isApproved'] ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       email: data['email']?.toString() ?? '',
-      totalReviews: (data['totalReviews'] ?? 0).toInt(),
+      totalReviews: _parseInt(data['totalReviews'], 0),
+      isFeatured: data['isFeatured'] ?? false,
     );
+  }
+
+  // Helper methods for safe parsing
+  static double _parseDouble(dynamic value, double defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? defaultValue;
+    return defaultValue;
+  }
+
+  static int _parseInt(dynamic value, int defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    return defaultValue;
   }
 
   Map<String, dynamic> toFirestore() {
@@ -103,6 +136,7 @@ class RestaurantModel {
       'isApproved': isApproved,
       'email': email,
       'totalReviews': totalReviews,
+      'isFeatured': isFeatured,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -132,6 +166,7 @@ class RestaurantModel {
     DateTime? updatedAt,
     String? email,
     int? totalReviews,
+    bool? isFeatured,
   }) {
     return RestaurantModel(
       id: id ?? this.id,
@@ -157,6 +192,7 @@ class RestaurantModel {
       updatedAt: updatedAt ?? this.updatedAt,
       email: email ?? this.email,
       totalReviews: totalReviews ?? this.totalReviews,
+      isFeatured: isFeatured ?? this.isFeatured,
     );
   }
 
@@ -185,6 +221,7 @@ class RestaurantModel {
       updatedAt: DateTime.now(),
       email: '',
       totalReviews: 0,
+      isFeatured: false,
     );
   }
 
@@ -200,7 +237,7 @@ class RestaurantModel {
   Map<String, double> get location => {'latitude': latitude, 'longitude': longitude};
 
   // Get opening time for today
-  String? get openingTime {
+  String? get todaysOpeningHours {
     final now = DateTime.now();
     final today = now.weekday;
     final days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -209,36 +246,73 @@ class RestaurantModel {
     return openingHours[todayKey];
   }
 
+  // Get today's opening and closing times separately
+  TimeOfDay? get openingTime {
+    final hours = todaysOpeningHours;
+    if (hours == null || hours.isEmpty) return null;
+    
+    try {
+      final parts = hours.split('-');
+      if (parts.length != 2) return null;
+      
+      return _parseTime(parts[0].trim());
+    } catch (e) {
+      return null;
+    }
+  }
+
+  TimeOfDay? get closingTime {
+    final hours = todaysOpeningHours;
+    if (hours == null || hours.isEmpty) return null;
+    
+    try {
+      final parts = hours.split('-');
+      if (parts.length != 2) return null;
+      
+      return _parseTime(parts[1].trim());
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Check if restaurant is currently open
   bool get isCurrentlyOpen {
     if (!isOpen) return false;
     
-    final openingTime = this.openingTime;
-    if (openingTime == null || openingTime.isEmpty) return true;
+    final openTime = openingTime;
+    final closeTime = closingTime;
     
-    try {
-      final parts = openingTime.split('-');
-      if (parts.length != 2) return true;
-      
-      final now = TimeOfDay.now();
-      final openTime = _parseTime(parts[0].trim());
-      final closeTime = _parseTime(parts[1].trim());
-      
-      return now.hour > openTime.hour || 
-             (now.hour == openTime.hour && now.minute >= openTime.minute) &&
-             (now.hour < closeTime.hour || 
-             (now.hour == closeTime.hour && now.minute < closeTime.minute));
-    } catch (e) {
-      return true;
-    }
+    if (openTime == null || closeTime == null) return true;
+    
+    final now = TimeOfDay.now();
+    
+    // Check if current time is between opening and closing time
+    final isAfterOpening = now.hour > openTime.hour || 
+                          (now.hour == openTime.hour && now.minute >= openTime.minute);
+    
+    final isBeforeClosing = now.hour < closeTime.hour || 
+                           (now.hour == closeTime.hour && now.minute < closeTime.minute);
+    
+    return isAfterOpening && isBeforeClosing;
   }
 
   TimeOfDay _parseTime(String timeString) {
-    final parts = timeString.split(':');
-    return TimeOfDay(
-      hour: int.parse(parts[0]),
-      minute: int.parse(parts[1]),
-    );
+    try {
+      final parts = timeString.split(':');
+      if (parts.length != 2) throw const FormatException('Invalid time format');
+      
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      
+      if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        throw const FormatException('Invalid time values');
+      }
+      
+      return TimeOfDay(hour: hour, minute: minute);
+    } catch (e) {
+      // Return a default time if parsing fails
+      return const TimeOfDay(hour: 9, minute: 0);
+    }
   }
 
   // Get average preparation time
@@ -260,5 +334,113 @@ class RestaurantModel {
   int get totalDeliveryTime => preparationTime + estimatedDeliveryTime;
   String get formattedTotalDeliveryTime => '$totalDeliveryTime min';
 
-  String? get closingTime => null;
+  // Get minimum order amount
+  double get minOrderAmount => minimumOrder;
+
+  // Get formatted opening status
+  String get formattedOpeningStatus {
+    if (!isOpen) return 'Closed';
+    return isCurrentlyOpen ? 'Open' : 'Closed';
+  }
+
+  // Get next opening time if currently closed
+  String? get nextOpeningTime {
+    if (isCurrentlyOpen || !isOpen) return null;
+    
+    final openTime = openingTime;
+    if (openTime == null) return null;
+    
+    return 'Opens at ${openTime.format(TimeOfDayFormat.HH_colon_mm as BuildContext)}';
+  }
+
+  // Get delivery information summary
+  String get deliveryInfo {
+    return '$formattedDeliveryFee delivery • $formattedTotalDeliveryTime • $formattedMinimumOrder';
+  }
+
+  // Check if restaurant offers delivery
+  bool get offersDelivery => deliveryFee >= 0;
+
+  // Get distance from current location
+  String getDistanceFrom(double userLat, double userLng) {
+    final distance = calculateDistance(latitude, longitude, userLat, userLng);
+    if (distance < 1) {
+      return '${(distance * 1000).round()} m';
+    }
+    return '${distance.toStringAsFixed(1)} km';
+  }
+
+  double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+    const earthRadius = 6371; // Earth's radius in kilometers
+    
+    final dLat = _degreesToRadians(lat2 - lat1);
+    final dLng = _degreesToRadians(lng2 - lng1);
+    
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+             math.cos(_degreesToRadians(lat1)) * math.cos(_degreesToRadians(lat2)) *
+             math.sin(dLng / 2) * math.sin(dLng / 2);
+    
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    final distance = earthRadius * c;
+    
+    return distance;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * math.pi / 180;
+  }
+
+  // Get featured status
+  bool get isRestaurantFeatured => isFeatured;
+
+  // Get rating stars (for UI display)
+  List<bool> get ratingStars {
+    final fullStars = rating.floor();
+    final hasHalfStar = (rating - fullStars) >= 0.5;
+    
+    return List.generate(5, (index) {
+      if (index < fullStars) return true;
+      if (index == fullStars && hasHalfStar) return true;
+      return false;
+    });
+  }
+
+  // Get preparation status
+  String get preparationStatus {
+    if (preparationTime <= 15) return 'Fast';
+    if (preparationTime <= 30) return 'Normal';
+    return 'Slow';
+  }
+
+  // Check if restaurant is new (less than 7 days old)
+  bool get isNewRestaurant {
+    final now = DateTime.now();
+    return now.difference(createdAt).inDays <= 7;
+  }
+
+  // Get formatted creation date
+  String get formattedCreatedDate {
+    return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+  }
+
+  // Get contact information
+  String get contactInfo => '$phoneNumber • $email';
+
+  // Check if restaurant has valid location
+  bool get hasValidLocation => latitude != 0.0 && longitude != 0.0;
+
+  // Get map URL (for Google Maps)
+  String get mapUrl {
+    return 'https://www.google.com/maps?q=$latitude,$longitude';
+  }
+
+  // Get directions URL
+  String get directionsUrl {
+    return 'https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude';
+  }
+
+  // Get shareable content
+  String get shareContent {
+    return 'Check out $name - $description\nRating: $formattedRating ⭐\n$address';
+  }
 }
