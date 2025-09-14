@@ -40,41 +40,95 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Analytics'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: const Text(
+          'Analytics Dashboard',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        iconTheme: const IconThemeData(color: Colors.black87),
         actions: [
-          PopupMenuButton<String>(
-            initialValue: _selectedPeriod,
-            onSelected: (value) {
-              setState(() {
-                _selectedPeriod = value;
-              });
-              ref.read(analyticsProvider.notifier).fetchAnalytics(value);
-            },
-            itemBuilder: (context) => _periods.map((period) {
-              return PopupMenuItem(
-                value: period,
-                child: Text(period),
-              );
-            }).toList(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_selectedPeriod),
-                  const Icon(Icons.arrow_drop_down),
-                ],
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green[100]!),
+            ),
+            child: PopupMenuButton<String>(
+              initialValue: _selectedPeriod,
+              onSelected: (value) {
+                setState(() {
+                  _selectedPeriod = value;
+                });
+                ref.read(analyticsProvider.notifier).fetchAnalytics(value);
+              },
+              itemBuilder: (context) => _periods.map((period) {
+                return PopupMenuItem(
+                  value: period,
+                  child: Text(period),
+                );
+              }).toList(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _selectedPeriod,
+                      style: TextStyle(
+                        color: Colors.green[800],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.arrow_drop_down, color: Colors.green[800]),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
       body: analyticsState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('Error: $error')),
+        loading: () => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+          ),
+        ),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'Error loading analytics',
+                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$error',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  ref.read(analyticsProvider.notifier).fetchAnalytics(_selectedPeriod);
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
         data: (analyticsData) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -83,108 +137,126 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               children: [
                 // Overview Cards
                 Text(
-                  'Overview',
+                  'Performance Overview',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
                   ),
-                ).animate().fadeIn().slideX(begin: -0.3),
+                ),
                 
                 const SizedBox(height: 16),
                 
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final cardWidth = constraints.maxWidth > 600 
-                      ? (constraints.maxWidth - 16) / 2 
-                      : constraints.maxWidth;
-                    
-                    return Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      children: [
-                        SizedBox(
-                          width: cardWidth,
-                          child: _buildOverviewCard(
-                            context,
-                            title: 'Total Orders',
-                            value: analyticsData.totalOrders.toString(),
-                            change: analyticsData.ordersChange,
-                            isPositive: analyticsData.ordersChange.contains('+'),
-                            icon: Icons.receipt_long,
-                            color: Colors.blue,
-                          ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
-                        ),
-                        SizedBox(
-                          width: cardWidth,
-                          child: _buildOverviewCard(
-                            context,
-                            title: 'Revenue',
-                            value: '₹${analyticsData.revenue.toStringAsFixed(0)}',
-                            change: analyticsData.revenueChange,
-                            isPositive: analyticsData.revenueChange.contains('+'),
-                            icon: Icons.currency_rupee,
-                            color: Colors.green,
-                          ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.3),
-                        ),
-                        SizedBox(
-                          width: cardWidth,
-                          child: _buildOverviewCard(
-                            context,
-                            title: 'Avg Order',
-                            value: '₹${analyticsData.avgOrderValue.toStringAsFixed(2)}',
-                            change: analyticsData.avgOrderChange,
-                            isPositive: analyticsData.avgOrderChange.contains('+'),
-                            icon: Icons.shopping_cart,
-                            color: Colors.orange,
-                          ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.3),
-                        ),
-                        SizedBox(
-                          width: cardWidth,
-                          child: _buildOverviewCard(
-                            context,
-                            title: 'Rating',
-                            value: analyticsData.rating.toStringAsFixed(1),
-                            change: analyticsData.ratingChange,
-                            isPositive: analyticsData.ratingChange.contains('+'),
-                            icon: Icons.star,
-                            color: Colors.amber,
-                          ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.3),
-                        ),
-                      ],
-                    );
-                  },
+                GridView.count(
+                  crossAxisCount: MediaQuery.of(context).size.width > 600 ? 2 : 1,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: MediaQuery.of(context).size.width > 600 ? 1.5 : 1.8,
+                  children: [
+                    _buildOverviewCard(
+                      context,
+                      title: 'Total Orders',
+                      value: analyticsData.totalOrders.toString(),
+                      change: analyticsData.ordersChange,
+                      isPositive: analyticsData.ordersChange.contains('+'),
+                      icon: Icons.receipt_long,
+                      color: Colors.blue,
+                    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
+                    _buildOverviewCard(
+                      context,
+                      title: 'Revenue',
+                      value: '₹${analyticsData.revenue.toStringAsFixed(0)}',
+                      change: analyticsData.revenueChange,
+                      isPositive: analyticsData.revenueChange.contains('+'),
+                      icon: Icons.currency_rupee,
+                      color: Colors.green,
+                    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.3),
+                    _buildOverviewCard(
+                      context,
+                      title: 'Avg Order Value',
+                      value: '₹${analyticsData.avgOrderValue.toStringAsFixed(2)}',
+                      change: analyticsData.avgOrderChange,
+                      isPositive: analyticsData.avgOrderChange.contains('+'),
+                      icon: Icons.shopping_cart,
+                      color: Colors.orange,
+                    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.3),
+                    _buildOverviewCard(
+                      context,
+                      title: 'Customer Rating',
+                      value: analyticsData.rating.toStringAsFixed(1),
+                      change: analyticsData.ratingChange,
+                      isPositive: analyticsData.ratingChange.contains('+'),
+                      icon: Icons.star,
+                      color: Colors.amber,
+                    ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.3),
+                  ],
                 ),
                 
                 const SizedBox(height: 32),
                 
                 // Revenue Chart
-                Text(
-                  'Revenue Trend',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.3),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Revenue Trend',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _selectedPeriod,
+                        style: TextStyle(
+                          color: Colors.green[800],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 
                 const SizedBox(height: 16),
                 
                 Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     child: SizedBox(
-                      height: 200,
+                      height: 220,
                       child: LineChart(
                         LineChartData(
-                          gridData: const FlGridData(show: false),
+                          minX: 0,
+                          maxX: analyticsData.revenueLabels.isEmpty ? 1 : (analyticsData.revenueLabels.length - 1).toDouble(),
+                          minY: 0,
+                          maxY: analyticsData.revenueData.isEmpty ? 1 : (analyticsData.revenueData.reduce((a, b) => a > b ? a : b) * 1.1),
+                          gridData: const FlGridData(show: true, drawVerticalLine: false),
                           titlesData: FlTitlesData(
                             leftTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
-                                reservedSize: 30,
+                                reservedSize: 42,
                                 getTitlesWidget: (value, meta) {
                                   return Padding(
-                                    padding: const EdgeInsets.only(right: 4),
+                                    padding: const EdgeInsets.only(right: 8),
                                     child: Text(
                                       '₹${value.toInt()}',
-                                      style: const TextStyle(fontSize: 10),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[600],
+                                      ),
                                     ),
                                   );
                                 },
@@ -193,13 +265,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
+                                reservedSize: 24,
                                 getTitlesWidget: (value, meta) {
                                   if (value.toInt() < analyticsData.revenueLabels.length) {
                                     return Padding(
-                                      padding: const EdgeInsets.only(top: 4),
+                                      padding: const EdgeInsets.only(top: 8),
                                       child: Text(
                                         analyticsData.revenueLabels[value.toInt()],
-                                        style: const TextStyle(fontSize: 10),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey[600],
+                                        ),
                                       ),
                                     );
                                   }
@@ -210,19 +286,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                           ),
-                          borderData: FlBorderData(show: false),
+                          borderData: FlBorderData(
+                            show: true,
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
                           lineBarsData: [
                             LineChartBarData(
                               spots: analyticsData.revenueData.asMap().entries.map((e) {
                                 return FlSpot(e.key.toDouble(), e.value);
                               }).toList(),
                               isCurved: true,
-                              color: Theme.of(context).colorScheme.primary,
-                              barWidth: 3,
+                              color: Colors.green,
+                              barWidth: 4,
                               dotData: const FlDotData(show: false),
                               belowBarData: BarAreaData(
                                 show: true,
-                                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                color: Colors.green.withOpacity(0.1),
                               ),
                             ),
                           ],
@@ -234,146 +313,183 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 
                 const SizedBox(height: 32),
                 
-                // Top Selling Items
-                Text(
-                  'Top Selling Items',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ).animate().fadeIn(delay: 800.ms).slideX(begin: -0.3),
-                
-                const SizedBox(height: 16),
-                
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < analyticsData.topItems.length; i++) ...[
-                          if (i > 0) const Divider(height: 1),
-                          _buildTopItemRow(
-                            analyticsData.topItems[i].name, 
-                            analyticsData.topItems[i].quantity, 
-                            '₹${analyticsData.topItems[i].revenue.toStringAsFixed(0)}'
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.3),
-                
-                const SizedBox(height: 32),
-                
-                // Order Status Distribution
-                Text(
-                  'Order Status Distribution',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ).animate().fadeIn(delay: 1000.ms).slideX(begin: -0.3),
-                
-                const SizedBox(height: 16),
-                
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 200,
-                          child: PieChart(
-                            PieChartData(
-                              sections: analyticsData.orderStatusDistribution.entries.map((e) {
-                                final status = e.key;
-                                final value = e.value;
-                                final percentage = (value / analyticsData.totalOrders * 100).round();
-                                
-                                Color color;
-                                switch (status) {
-                                  case 'Delivered':
-                                    color = Colors.green;
-                                    break;
-                                  case 'Preparing':
-                                    color = Colors.orange;
-                                    break;
-                                  case 'Pending':
-                                    color = Colors.blue;
-                                    break;
-                                  case 'Out for Delivery':
-                                    color = Colors.purple;
-                                    break;
-                                  default:
-                                    color = Colors.grey;
-                                }
-                                
-                                return PieChartSectionData(
-                                  value: value.toDouble(),
-                                  title: '$status\n$percentage%',
-                                  color: color,
-                                  radius: 60,
-                                  titleStyle: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                );
-                              }).toList(),
-                              centerSpaceRadius: 40,
-                              sectionsSpace: 2,
+                // Two-column layout for smaller cards
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Top Selling Items
+                          Text(
+                            'Top Selling Items',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Legend for order status
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.center,
-                          children: analyticsData.orderStatusDistribution.entries.map((e) {
-                            final status = e.key;
-                            
-                            Color color;
-                            switch (status) {
-                              case 'Delivered':
-                                color = Colors.green;
-                                break;
-                              case 'Preparing':
-                                color = Colors.orange;
-                                break;
-                              case 'Pending':
-                                color = Colors.blue;
-                                break;
-                              case 'Out for Delivery':
-                                color = Colors.purple;
-                                break;
-                              default:
-                                color = Colors.grey;
-                            }
-                            
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: color,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  status,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ],
+                          
+                          const SizedBox(height: 16),
+                          
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  for (int i = 0; i < analyticsData.topItems.length; i++) ...[
+                                    if (i > 0) const Divider(height: 1, thickness: 0.5),
+                                    _buildTopItemRow(
+                                      analyticsData.topItems[i].name, 
+                                      analyticsData.topItems[i].quantity, 
+                                      '₹${analyticsData.topItems[i].revenue.toStringAsFixed(0)}'
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.3),
+                        ],
+                      ),
                     ),
-                  ),
-                ).animate().fadeIn(delay: 1100.ms).slideY(begin: 0.3),
+                    
+                    const SizedBox(width: 16),
+                    
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Order Status Distribution
+                          Text(
+                            'Order Status',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: 180,
+                                    child: PieChart(
+                                      PieChartData(
+                                        sections: analyticsData.orderStatusDistribution.entries.map((e) {
+                                          final status = e.key;
+                                          final value = e.value;
+                                          final percentage = (value / analyticsData.totalOrders * 100).round();
+                                          
+                                          Color color;
+                                          switch (status) {
+                                            case 'Delivered':
+                                              color = Colors.green;
+                                              break;
+                                            case 'Preparing':
+                                              color = Colors.orange;
+                                              break;
+                                            case 'Pending':
+                                              color = Colors.blue;
+                                              break;
+                                            case 'Out for Delivery':
+                                              color = Colors.purple;
+                                              break;
+                                            default:
+                                              color = Colors.grey;
+                                          }
+                                          
+                                          return PieChartSectionData(
+                                            value: value.toDouble(),
+                                            title: '$percentage%',
+                                            color: color,
+                                            radius: 60,
+                                            titleStyle: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          );
+                                        }).toList(),
+                                        centerSpaceRadius: 40,
+                                        sectionsSpace: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  // Legend for order status
+                                  Wrap(
+                                    spacing: 12,
+                                    runSpacing: 8,
+                                    alignment: WrapAlignment.center,
+                                    children: analyticsData.orderStatusDistribution.entries.map((e) {
+                                      final status = e.key;
+                                      
+                                      Color color;
+                                      switch (status) {
+                                        case 'Delivered':
+                                          color = Colors.green;
+                                          break;
+                                        case 'Preparing':
+                                          color = Colors.orange;
+                                          break;
+                                        case 'Pending':
+                                          color = Colors.blue;
+                                        case 'Out for Delivery':
+                                          color = Colors.purple;
+                                          break;
+                                        default:
+                                          color = Colors.grey;
+                                      }
+                                      
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: BoxDecoration(
+                                              color: color,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            status,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[700],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ).animate().fadeIn(delay: 1100.ms).slideY(begin: 0.3),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 32),
               ],
             ),
           );
@@ -392,45 +508,67 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     required Color color,
   }) {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(icon, color: color, size: 24),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isPositive ? Colors.green.shade100 : Colors.red.shade100,
+                    color: isPositive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    change,
-                    style: TextStyle(
-                      color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isPositive ? Icons.arrow_upward : Icons.arrow_downward,
+                        size: 14,
+                        color: isPositive ? Colors.green : Colors.red,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        change,
+                        style: TextStyle(
+                          color: isPositive ? Colors.green : Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               value,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[800],
               ),
             ),
             const SizedBox(height: 4),
             Text(
               title,
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: Colors.grey[600],
                 fontSize: 14,
               ),
             ),
@@ -459,7 +597,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             child: Text(
               '$quantity sold',
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: Colors.grey[600],
                 fontSize: 12,
               ),
               textAlign: TextAlign.center,
@@ -471,7 +609,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               revenue,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
+                color: Colors.green[700],
                 fontSize: 12,
               ),
               textAlign: TextAlign.right,
