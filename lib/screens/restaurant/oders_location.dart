@@ -444,12 +444,11 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
                       side: BorderSide(color: lightGreenPrimary),
                     ),
                     onPressed: () {
+                      final orderManagementService = ref.read(orderManagementProvider);
                       if (order.status == OrderStatus.preparing) {
-                        ref.read(orderManagementProvider.notifier)
-                            .updateOrderStatus(order.id, OrderStatus.ready);
+                        orderManagementService.updateOrderStatus(order.id, OrderStatus.ready);
                       } else {
-                        ref.read(orderManagementProvider.notifier)
-                            .updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                        orderManagementService.updateOrderStatus(order.id, OrderStatus.outForDelivery);
                       }
                     },
                     child: Text(
@@ -484,8 +483,8 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
           if (order.status == OrderStatus.outForDelivery)
             ElevatedButton(
               onPressed: () {
-                ref.read(orderManagementProvider.notifier)
-                    .updateOrderStatus(order.id, OrderStatus.delivered);
+                final orderManagementService = ref.read(orderManagementProvider);
+                orderManagementService.updateOrderStatus(order.id, OrderStatus.delivered);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: lightGreenPrimary,

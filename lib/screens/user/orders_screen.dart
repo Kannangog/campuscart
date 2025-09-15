@@ -39,7 +39,7 @@ class OrdersScreen extends ConsumerWidget {
             itemCount: orderList.length,
             itemBuilder: (context, index) {
               final order = orderList[index];
-              return _buildOrderCard(context, order, index);
+              return _buildOrderCard(context, order, index, ref);
             },
           );
         },
@@ -115,7 +115,7 @@ class OrdersScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildOrderCard(BuildContext context, OrderModel order, int index) {
+  Widget _buildOrderCard(BuildContext context, OrderModel order, int index, WidgetRef ref) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Card(
@@ -219,7 +219,7 @@ class OrdersScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '\$${order.total.toStringAsFixed(2)}',
+                          '₹${order.total.toStringAsFixed(2)}',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -240,7 +240,7 @@ class OrdersScreen extends ConsumerWidget {
                         if (order.status == OrderStatus.pending)
                           TextButton(
                             onPressed: () {
-                              _showCancelOrderDialog(context, order);
+                              _showCancelOrderDialog(context, ref, order);
                             },
                             child: const Text('Cancel'),
                           ),
@@ -303,12 +303,16 @@ class OrdersScreen extends ConsumerWidget {
         textColor = Colors.red.shade700;
         text = 'Cancelled';
         break;
-      case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
       case OrderStatus.readyForDelivery:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        backgroundColor = Colors.cyan.shade100;
+        textColor = Colors.cyan.shade700;
+        text = 'Ready for Delivery';
+        break;
+      default:
+        backgroundColor = Colors.grey.shade100;
+        textColor = Colors.grey.shade700;
+        text = 'Unknown';
+        break;
     }
 
     return Container(
@@ -390,6 +394,20 @@ class OrdersScreen extends ConsumerWidget {
               
               const SizedBox(height: 24),
               
+              // Order Timeline
+              Text(
+                'Order Status',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              
+              const SizedBox(height: 12),
+              
+              _buildOrderTimeline(order),
+              
+              const SizedBox(height: 24),
+              
               // Order Items
               Text(
                 'Items Ordered',
@@ -423,7 +441,7 @@ class OrdersScreen extends ConsumerWidget {
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                           Text(
-                            '${item.quantity}x \$${item.price.toStringAsFixed(2)}',
+                            '${item.quantity}x ₹${item.price.toStringAsFixed(2)}',
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 12,
@@ -433,7 +451,7 @@ class OrdersScreen extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      '\$${item.totalPrice.toStringAsFixed(2)}',
+                      '₹${item.totalPrice.toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
                   ],
@@ -452,15 +470,15 @@ class OrdersScreen extends ConsumerWidget {
               
               const SizedBox(height: 12),
               
-              _buildSummaryRow('Subtotal', '\$${order.subtotal.toStringAsFixed(2)}'),
-              _buildSummaryRow('Delivery Fee', '\$${order.deliveryFee.toStringAsFixed(2)}'),
-              _buildSummaryRow('Tax', '\$${order.tax.toStringAsFixed(2)}'),
+              _buildSummaryRow('Subtotal', '₹${order.subtotal.toStringAsFixed(2)}'),
+              _buildSummaryRow('Delivery Fee', '₹${order.deliveryFee.toStringAsFixed(2)}'),
+              _buildSummaryRow('Tax', '₹${order.tax.toStringAsFixed(2)}'),
               
               const Divider(height: 24),
               
               _buildSummaryRow(
                 'Total',
-                '\$${order.total.toStringAsFixed(2)}',
+                '₹${order.total.toStringAsFixed(2)}',
                 isTotal: true,
               ),
               
@@ -490,7 +508,7 @@ class OrdersScreen extends ConsumerWidget {
                 ],
               ),
               
-              if (order.specialInstructions != null) ...[
+              if (order.specialInstructions != null && order.specialInstructions!.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,11 +561,128 @@ class OrdersScreen extends ConsumerWidget {
                   ],
                 ),
               ],
+              
+              const SizedBox(height: 24),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildOrderTimeline(OrderModel order) {
+    final statuses = [
+      OrderStatus.pending,
+      OrderStatus.confirmed,
+      OrderStatus.preparing,
+      OrderStatus.ready,
+      OrderStatus.readyForDelivery,
+      OrderStatus.outForDelivery,
+      OrderStatus.delivered,
+    ];
+    
+    final currentStatusIndex = statuses.indexOf(order.status);
+    
+    return Column(
+      children: [
+        for (int i = 0; i < statuses.length; i++)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Timeline indicator
+              Column(
+                children: [
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i <= currentStatusIndex 
+                          ? _getStatusColor(statuses[i]) 
+                          : Colors.grey.shade300,
+                    ),
+                    child: i <= currentStatusIndex
+                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        : null,
+                  ),
+                  if (i < statuses.length - 1)
+                    Container(
+                      width: 2,
+                      height: 30,
+                      color: i < currentStatusIndex 
+                          ? _getStatusColor(statuses[i])
+                          : Colors.grey.shade300,
+                    ),
+                ],
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // Status text
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 30),
+                  child: Text(
+                    _getStatusText(statuses[i]),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: i <= currentStatusIndex 
+                          ? Colors.black 
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Color _getStatusColor(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return Colors.orange;
+      case OrderStatus.confirmed:
+        return Colors.blue;
+      case OrderStatus.preparing:
+        return Colors.purple;
+      case OrderStatus.ready:
+        return Colors.teal;
+      case OrderStatus.readyForDelivery:
+        return Colors.cyan;
+      case OrderStatus.outForDelivery:
+        return Colors.indigo;
+      case OrderStatus.delivered:
+        return Colors.green;
+      case OrderStatus.cancelled:
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getStatusText(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return 'Order placed';
+      case OrderStatus.confirmed:
+        return 'Order confirmed';
+      case OrderStatus.preparing:
+        return 'Preparing your order';
+      case OrderStatus.ready:
+        return 'Order is ready';
+      case OrderStatus.readyForDelivery:
+        return 'Ready for delivery';
+      case OrderStatus.outForDelivery:
+        return 'Out for delivery';
+      case OrderStatus.delivered:
+        return 'Delivered';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
+      default:
+        return 'Unknown status';
+    }
   }
 
   Widget _buildSummaryRow(String label, String value, {bool isTotal = false}) {
@@ -575,7 +710,7 @@ class OrdersScreen extends ConsumerWidget {
     );
   }
 
-  void _showCancelOrderDialog(BuildContext context, OrderModel order) {
+  void _showCancelOrderDialog(BuildContext context, WidgetRef ref, OrderModel order) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -588,7 +723,8 @@ class OrdersScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              // Cancel order logic would go here
+              // Cancel order logic using orderManagementProvider
+              ref.read(orderManagementProvider).cancelOrder(order.id);
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(

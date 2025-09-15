@@ -283,38 +283,25 @@ final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, S
   return streamController.stream;
 });
 
-// Enhanced order management with retry logic
-final orderManagementProvider = StateNotifierProvider<OrderManagementNotifier, AsyncValue<void>>((ref) {
-  return OrderManagementNotifier(ref);
+// Order management provider - Changed from StateNotifierProvider to a simple Provider
+final orderManagementProvider = Provider<OrderManagementService>((ref) {
+  return OrderManagementService();
 });
 
-class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
-  final Ref ref;
-  OrderManagementNotifier(this.ref) : super(const AsyncValue.data(null));
-
+class OrderManagementService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final int _maxRetries = 3;
 
   Future<String> createOrder(OrderModel order) async {
-    try {
-      state = const AsyncValue.loading();
-      
-      final docRef = await _firestore
-          .collection('orders')
-          .add(order.toFirestore());
-      
-      state = const AsyncValue.data(null);
-      return docRef.id;
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
-      rethrow;
-    }
+    final docRef = await _firestore
+        .collection('orders')
+        .add(order.toFirestore());
+    
+    return docRef.id;
   }
 
   Future<void> updateOrderStatus(String orderId, OrderStatus status, {int retryCount = 0}) async {
     try {
-      state = const AsyncValue.loading();
-      
       final updates = <String, dynamic>{
         'status': status.toString().split('.').last,
         'updatedAt': Timestamp.now(),
@@ -330,77 +317,59 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
           .collection('orders')
           .doc(orderId)
           .update(updates);
-      
-      state = const AsyncValue.data(null);
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         // Wait and retry for index errors
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
         return updateOrderStatus(orderId, status, retryCount: retryCount + 1);
       }
-      state = AsyncValue.error(e, StackTrace.current);
       rethrow;
     }
   }
 
   Future<void> cancelOrder(String orderId, {int retryCount = 0}) async {
     try {
-      state = const AsyncValue.loading();
-      
       await _firestore.collection('orders').doc(orderId).update({
         'status': OrderStatus.cancelled.toString().split('.').last,
         'updatedAt': Timestamp.now(),
       });
-      
-      state = const AsyncValue.data(null);
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
         return cancelOrder(orderId, retryCount: retryCount + 1);
       }
-      state = AsyncValue.error(e, StackTrace.current);
       rethrow;
     }
   }
 
   Future<void> assignDriver(String orderId, String driverId, {int retryCount = 0}) async {
     try {
-      state = const AsyncValue.loading();
-      
       await _firestore.collection('orders').doc(orderId).update({
         'driverId': driverId,
         'status': OrderStatus.outForDelivery.toString().split('.').last,
         'updatedAt': Timestamp.now(),
       });
-      
-      state = const AsyncValue.data(null);
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
         return assignDriver(orderId, driverId, retryCount: retryCount + 1);
       }
-      state = AsyncValue.error(e, StackTrace.current);
       rethrow;
     }
   }
 
   Future<void> markAsDelivered(String orderId, {int retryCount = 0}) async {
     try {
-      state = const AsyncValue.loading();
-      
       await _firestore.collection('orders').doc(orderId).update({
         'status': OrderStatus.delivered.toString().split('.').last,
         'deliveredAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
       });
-      
-      state = const AsyncValue.data(null);
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
         return markAsDelivered(orderId, retryCount: retryCount + 1);
       }
-      state = AsyncValue.error(e, StackTrace.current);
       rethrow;
     }
   }

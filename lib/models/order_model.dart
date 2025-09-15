@@ -5,11 +5,10 @@ enum OrderStatus {
   confirmed,
   preparing,
   ready,
+  readyForDelivery,
   outForDelivery,
   delivered,
-  cancelled,
-  readyForDelivery,
-  delerved
+  cancelled, delerved,
 }
 
 class OrderItem {
@@ -49,13 +48,11 @@ class OrderItem {
       name: map['name'] ?? '',
       description: map['description'] ?? '',
       price: (map['price'] ?? 0.0).toDouble(),
-      quantity: map['quantity'] ?? 1,
+      quantity: map['quantity']?.toInt() ?? 1,
       imageUrl: map['imageUrl'] ?? '',
       specialInstructions: map['specialInstructions'],
     );
   }
-
-  double get total => price * quantity;
 
   double get totalPrice => price * quantity;
 }
@@ -126,16 +123,45 @@ class OrderModel {
   factory OrderModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     
-    // Parse order status
+    // Parse order status - handle string to enum conversion
+    final statusString = data['status']?.toString() ?? 'pending';
     OrderStatus status;
+    
     try {
-      final statusString = data['status']?.toString() ?? 'pending';
+      // Remove 'OrderStatus.' prefix if present
+      final cleanStatusString = statusString.replaceFirst('OrderStatus.', '');
       status = OrderStatus.values.firstWhere(
-        (e) => e.toString() == 'OrderStatus.$statusString',
+        (e) => e.toString() == 'OrderStatus.$cleanStatusString',
         orElse: () => OrderStatus.pending,
       );
     } catch (e) {
-      status = OrderStatus.pending;
+      // Fallback for legacy status values
+      switch (statusString.toLowerCase()) {
+        case 'delivered':
+        case 'delerved': // Handle typo in legacy data
+          status = OrderStatus.delivered;
+          break;
+        case 'readyfordelivery':
+          status = OrderStatus.readyForDelivery;
+          break;
+        case 'outfordelivery':
+          status = OrderStatus.outForDelivery;
+          break;
+        case 'cancelled':
+          status = OrderStatus.cancelled;
+          break;
+        case 'confirmed':
+          status = OrderStatus.confirmed;
+          break;
+        case 'preparing':
+          status = OrderStatus.preparing;
+          break;
+        case 'ready':
+          status = OrderStatus.ready;
+          break;
+        default:
+          status = OrderStatus.pending;
+      }
     }
 
     // Parse order items
@@ -201,7 +227,7 @@ class OrderModel {
       'tax': tax,
       'discount': discount,
       'total': total,
-      'status': status.toString().split('.').last,
+      'status': status.name, // Use enum name instead of toString
       'deliveryAddress': deliveryAddress,
       'deliveryLatitude': deliveryLatitude,
       'deliveryLongitude': deliveryLongitude,
@@ -291,7 +317,6 @@ class OrderModel {
   bool get isActive => ![
     OrderStatus.delivered,
     OrderStatus.cancelled,
-    OrderStatus.delerved,
   ].contains(status);
 
   bool get canBeCancelled => [
@@ -323,10 +348,11 @@ class OrderModel {
         return 'Out for Delivery';
       case OrderStatus.delivered:
         return 'Delivered';
-      case OrderStatus.delerved:
-        return 'Delivered';
       case OrderStatus.cancelled:
         return 'Cancelled';
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -341,7 +367,7 @@ class OrderModel {
 
   // Check if order is eligible for rating (delivered more than 1 hour ago)
   bool get canBeRated {
-    if ((status != OrderStatus.delivered && status != OrderStatus.delerved) || deliveredAt == null) return false;
+    if (status != OrderStatus.delivered || deliveredAt == null) return false;
     final now = DateTime.now();
     return now.difference(deliveredAt!).inHours >= 1;
   }
@@ -363,10 +389,42 @@ class OrderModel {
         return 6;
       case OrderStatus.delivered:
         return 7;
-      case OrderStatus.delerved:
-        return 7;
       case OrderStatus.cancelled:
         return 0;
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
+  }
+  
+  // Get the next expected status in the workflow
+  OrderStatus? get nextStatus {
+    switch (status) {
+      case OrderStatus.pending:
+        return OrderStatus.confirmed;
+      case OrderStatus.confirmed:
+        return OrderStatus.preparing;
+      case OrderStatus.preparing:
+        return OrderStatus.ready;
+      case OrderStatus.ready:
+        return OrderStatus.readyForDelivery;
+      case OrderStatus.readyForDelivery:
+        return OrderStatus.outForDelivery;
+      case OrderStatus.outForDelivery:
+        return OrderStatus.delivered;
+      case OrderStatus.delivered:
+      case OrderStatus.cancelled:
+        return null;
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+    }
+  }
+  
+  // Get the progress percentage (0.0 to 1.0)
+  double get progressPercentage {
+    const totalSteps = 6; // pending to delivered
+    final currentStep = statusPriority.clamp(1, totalSteps);
+    return currentStep / totalSteps;
   }
 }

@@ -628,9 +628,10 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         status == OrderStatus.outForDelivery;
   }
 
-  void _updateOrderStatus(String orderId, OrderStatus newStatus) async {
+void _updateOrderStatus(String orderId, OrderStatus newStatus) async {
     try {
-      await ref.read(orderManagementProvider.notifier).updateOrderStatus(orderId, newStatus);
+      // Remove .notifier and access the service directly
+      await ref.read(orderManagementProvider).updateOrderStatus(orderId, newStatus);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

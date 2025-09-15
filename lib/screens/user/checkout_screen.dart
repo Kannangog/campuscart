@@ -147,7 +147,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
       final cartState = ref.read(cartProvider);
       final cartNotifier = ref.read(cartProvider.notifier);
-      final orderNotifier = ref.read(orderManagementProvider.notifier);
+      final orderService = ref.read(orderManagementProvider); // Fixed: Direct access
 
       // Get restaurant info from cart
       if (cartState.restaurantId == null || cartState.restaurantName == null) {
@@ -210,8 +210,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         cancellationReason: null,
       );
 
-      // Place order
-      final orderId = await orderNotifier.createOrder(order);
+      // Place order - Fixed: Use orderService directly
+      final orderId = await orderService.createOrder(order);
 
       // Clear cart
       cartNotifier.clearCart();
