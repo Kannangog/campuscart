@@ -7,7 +7,9 @@ enum OrderStatus {
   ready,
   outForDelivery,
   delivered,
-  cancelled, readyForDelivery, delerved
+  cancelled,
+  readyForDelivery,
+  delerved
 }
 
 class OrderItem {
@@ -289,6 +291,7 @@ class OrderModel {
   bool get isActive => ![
     OrderStatus.delivered,
     OrderStatus.cancelled,
+    OrderStatus.delerved,
   ].contains(status);
 
   bool get canBeCancelled => [
@@ -314,33 +317,56 @@ class OrderModel {
         return 'Preparing';
       case OrderStatus.ready:
         return 'Ready for Pickup';
+      case OrderStatus.readyForDelivery:
+        return 'Ready for Delivery';
       case OrderStatus.outForDelivery:
         return 'Out for Delivery';
       case OrderStatus.delivered:
         return 'Delivered';
+      case OrderStatus.delerved:
+        return 'Delivered';
       case OrderStatus.cancelled:
         return 'Cancelled';
-      case OrderStatus.readyForDelivery:
-        // TODO: Handle this case.
-        throw UnimplementedError();
-      case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
     }
   }
 
-  String get formattedTotal => '\$${total.toStringAsFixed(2)}';
-  String get formattedSubtotal => '\$${subtotal.toStringAsFixed(2)}';
-  String get formattedDeliveryFee => '\$${deliveryFee.toStringAsFixed(2)}';
-  String get formattedTax => '\$${tax.toStringAsFixed(2)}';
-  String get formattedDiscount => '\$${discount.toStringAsFixed(2)}';
+  // Fixed currency formatting to use rupees instead of dollars
+  String get formattedTotal => '₹${total.toStringAsFixed(2)}';
+  String get formattedSubtotal => '₹${subtotal.toStringAsFixed(2)}';
+  String get formattedDeliveryFee => '₹${deliveryFee.toStringAsFixed(2)}';
+  String get formattedTax => '₹${tax.toStringAsFixed(2)}';
+  String get formattedDiscount => '₹${discount.toStringAsFixed(2)}';
 
   int get totalItems => items.fold(0, (int sum, OrderItem item) => sum + item.quantity);
 
   // Check if order is eligible for rating (delivered more than 1 hour ago)
   bool get canBeRated {
-    if (status != OrderStatus.delivered || deliveredAt == null) return false;
+    if ((status != OrderStatus.delivered && status != OrderStatus.delerved) || deliveredAt == null) return false;
     final now = DateTime.now();
     return now.difference(deliveredAt!).inHours >= 1;
+  }
+  
+  // Additional helper method to get status priority for sorting
+  int get statusPriority {
+    switch (status) {
+      case OrderStatus.pending:
+        return 1;
+      case OrderStatus.confirmed:
+        return 2;
+      case OrderStatus.preparing:
+        return 3;
+      case OrderStatus.ready:
+        return 4;
+      case OrderStatus.readyForDelivery:
+        return 5;
+      case OrderStatus.outForDelivery:
+        return 6;
+      case OrderStatus.delivered:
+        return 7;
+      case OrderStatus.delerved:
+        return 7;
+      case OrderStatus.cancelled:
+        return 0;
+    }
   }
 }

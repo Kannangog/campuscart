@@ -52,24 +52,29 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         }
         
         final restaurant = restaurantList.first;
-        final orders = ref.watch(restaurantOrdersProvider(restaurant.id));
+        final ordersAsync = ref.watch(restaurantOrdersProvider(restaurant.id));
         
         return Scaffold(
           appBar: AppBar(
             title: const Text('Orders Management'),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            elevation: 1,
             bottom: TabBar(
               controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicatorColor: Theme.of(context).colorScheme.primary,
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: Colors.grey,
               tabs: const [
-                Tab(text: 'New'),
+                Tab(text: 'New Orders'),
                 Tab(text: 'Preparing'),
                 Tab(text: 'Ready'),
                 Tab(text: 'Completed'),
               ],
             ),
           ),
-          body: orders.when(
+          body: ordersAsync.when(
             data: (orderList) {
               return TabBarView(
                 controller: _tabController,
@@ -86,9 +91,15 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
                   const SizedBox(height: 16),
-                  Text('Error loading orders: $error'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      'Error loading orders: ${error.toString()}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => ref.refresh(restaurantOrdersProvider(restaurant.id)),
@@ -104,7 +115,12 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (error, stack) => Scaffold(
-        body: Center(child: Text('Error: $error')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text('Error: ${error.toString()}'),
+          ),
+        ),
       ),
     );
   }
@@ -113,39 +129,54 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Orders Management'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 1,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.restaurant_outlined,
-              size: 120,
-              color: Colors.grey.shade400,
-            ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
-            
-            const SizedBox(height: 24),
-            
-            Text(
-              'No Restaurant Found',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.bold,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.restaurant_menu_outlined,
+                size: 120,
+                color: Colors.grey.shade400,
+              ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
+              
+              const SizedBox(height: 24),
+              
+              Text(
+                'No Restaurant Found',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
+              
+              const SizedBox(height: 12),
+              
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Text(
+                  'Please create a restaurant first to manage orders',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ).animate().fadeIn(delay: 400.ms),
+              
+              const SizedBox(height: 24),
+              
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Navigate to restaurant creation screen
+                },
+                icon: const Icon(Icons.add_business),
+                label: const Text('Create Restaurant'),
               ),
-            ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
-            
-            const SizedBox(height: 12),
-            
-            Text(
-              'Please create a restaurant first to manage orders',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.grey.shade500,
-              ),
-              textAlign: TextAlign.center,
-            ).animate().fadeIn(delay: 400.ms),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -153,6 +184,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
 
   Widget _buildOrdersList(List<OrderModel> allOrders, List<OrderStatus> statuses) {
     final filteredOrders = allOrders.where((order) => statuses.contains(order.status)).toList();
+    filteredOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     
     if (filteredOrders.isEmpty) {
       return Center(
@@ -170,6 +202,11 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: Colors.grey.shade600,
               ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'New orders will appear here',
+              style: TextStyle(color: Colors.grey.shade500),
             ),
           ],
         ),
@@ -190,13 +227,19 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Card(
-        elevation: 2,
+        elevation: 3,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: ExpansionTile(
-          leading: CircleAvatar(
-            backgroundColor: _getStatusColor(order.status).withOpacity(0.1),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _getStatusColor(order.status).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
             child: Icon(
               _getStatusIcon(order.status),
               color: _getStatusColor(order.status),
@@ -210,9 +253,10 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: 4),
               Text(
-                '${order.totalItems} items • ${order.formattedTotal}',
-                style: TextStyle(color: Colors.grey.shade600),
+                '${order.totalItems} items • ₹${order.total.toStringAsFixed(2)}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
               const SizedBox(height: 4),
               Text(
@@ -224,7 +268,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
               ),
             ],
           ),
-          trailing: _buildStatusChip(order.status, order),
+          trailing: _buildStatusChip(order.status),
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
@@ -233,81 +277,120 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                 children: [
                   // Customer Info
                   Text(
-                    'Customer:',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    'CUSTOMER INFORMATION',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    order.userName,
-                    style: TextStyle(color: Colors.grey.shade600),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline, size: 16, color: Colors.grey.shade600),
+                      const SizedBox(width: 8),
+                      Text(
+                        order.userName,
+                        style: TextStyle(color: Colors.grey.shade800),
+                      ),
+                    ],
                   ),
-                  Text(
-                    order.userPhone,
-                    style: TextStyle(color: Colors.grey.shade600),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.phone_outlined, size: 16, color: Colors.grey.shade600),
+                      const SizedBox(width: 8),
+                      Text(
+                        order.userPhone,
+                        style: TextStyle(color: Colors.grey.shade800),
+                      ),
+                    ],
                   ),
                   
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
                   
                   // Order Items
                   Text(
-                    'Items:',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    'ORDER ITEMS',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                      letterSpacing: 0.5,
                     ),
                   ),
                   const SizedBox(height: 8),
                   ...order.items.map((item) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       children: [
-                        Text('${item.quantity}x '),
-                        Expanded(child: Text(item.name)),
-                        Text('₹${(item.price * item.quantity).toStringAsFixed(2)}'),
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              item.quantity.toString(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            style: TextStyle(
+                              color: Colors.grey.shade800,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '₹${(item.price * item.quantity).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
                   )),
                   
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
                   
                   // Order Summary
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Subtotal:', style: TextStyle(color: Colors.grey.shade600)),
-                      Text(order.formattedSubtotal),
-                    ],
+                  Text(
+                    'ORDER SUMMARY',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                      letterSpacing: 0.5,
+                    ),
                   ),
+                  const SizedBox(height: 8),
+                  _buildSummaryRow('Subtotal', '₹${order.subtotal.toStringAsFixed(2)}'),
                   const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Delivery Fee:', style: TextStyle(color: Colors.grey.shade600)),
-                      Text(order.formattedDeliveryFee),
-                    ],
-                  ),
+                  _buildSummaryRow('Delivery Fee', '₹${order.deliveryFee.toStringAsFixed(2)}'),
                   const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Tax:', style: TextStyle(color: Colors.grey.shade600)),
-                      Text(order.formattedTax),
-                    ],
-                  ),
+                  _buildSummaryRow('Tax', '₹${order.tax.toStringAsFixed(2)}'),
                   if (order.discount > 0) ...[
                     const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Discount:', style: TextStyle(color: Colors.green.shade600)),
-                        Text('-${order.formattedDiscount}'),
-                      ],
-                    ),
+                    _buildSummaryRow('Discount', '-₹${order.discount.toStringAsFixed(2)}', 
+                      isDiscount: true),
                   ],
                   const SizedBox(height: 8),
-                  const Divider(),
-                  const SizedBox(height: 4),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -315,7 +398,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                         fontWeight: FontWeight.bold,
                       )),
                       Text(
-                        order.formattedTotal,
+                        '₹${order.total.toStringAsFixed(2)}',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.primary,
@@ -325,54 +408,90 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                   ),
                   
                   const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
                   
                   // Delivery Address
                   Text(
-                    'Delivery Address:',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    'DELIVERY ADDRESS',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    order.deliveryAddress,
-                    style: TextStyle(color: Colors.grey.shade600),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.location_on_outlined, size: 16, color: Colors.grey.shade600),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          order.deliveryAddress,
+                          style: TextStyle(color: Colors.grey.shade800),
+                        ),
+                      ),
+                    ],
                   ),
                   
                   if (order.specialInstructions != null && order.specialInstructions!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     Text(
-                      'Special Instructions:',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      'SPECIAL INSTRUCTIONS',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade600,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      order.specialInstructions!,
-                      style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        order.specialInstructions!,
+                        style: TextStyle(
+                          color: Colors.amber.shade800,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ),
                   ],
                   
                   const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
                   
                   // Payment Info
                   Text(
-                    'Payment:',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    'PAYMENT INFORMATION',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${order.paymentMethod.toUpperCase()} • ${order.paymentStatus.toUpperCase()}',
-                    style: TextStyle(color: Colors.grey.shade600),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.payment_outlined, size: 16, color: Colors.grey.shade600),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${order.paymentMethod.toUpperCase()} • ${order.paymentStatus.toUpperCase()}',
+                        style: TextStyle(color: Colors.grey.shade800),
+                      ),
+                    ],
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   
                   // Action Buttons
-                  _buildActionButtons(context, order),
+                  if (_shouldShowActions(order.status)) _buildActionButtons(context, order),
                 ],
               ),
             ),
@@ -382,88 +501,131 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
     ).animate().fadeIn(delay: (index * 100).ms).slideY(begin: 0.3);
   }
 
-  Widget _buildStatusChip(OrderStatus status, dynamic order) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: _getStatusColor(status).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        order.formattedStatus,
+  Widget _buildSummaryRow(String label, String value, {bool isDiscount = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(
+          color: Colors.grey.shade600,
+          fontSize: 13,
+        )),
+        Text(value, style: TextStyle(
+          color: isDiscount ? Colors.green : Colors.grey.shade700,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        )),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(OrderStatus status) {
+    return Chip(
+      label: Text(
+        _getStatusText(status),
         style: TextStyle(
-          color: _getStatusColor(status),
           fontSize: 12,
           fontWeight: FontWeight.w500,
+          color: _getStatusColor(status),
         ),
       ),
+      backgroundColor: _getStatusColor(status).withOpacity(0.1),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 
   Widget _buildActionButtons(BuildContext context, OrderModel order) {
-    switch (order.status) {
-      case OrderStatus.pending:
-        return Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _updateOrderStatus(order.id, OrderStatus.cancelled),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmallScreen = constraints.maxWidth < 400;
+        
+        switch (order.status) {
+          case OrderStatus.pending:
+            return Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    onPressed: () => _updateOrderStatus(order.id, OrderStatus.cancelled),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: isSmallScreen 
+                          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 8)
+                          : null,
+                    ),
+                    label: Text(isSmallScreen ? 'Reject' : 'Reject Order'),
+                  ),
                 ),
-                child: const Text('Reject'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    onPressed: () => _updateOrderStatus(order.id, OrderStatus.confirmed),
+                    style: ElevatedButton.styleFrom(
+                      padding: isSmallScreen 
+                          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 8)
+                          : null,
+                    ),
+                    label: Text(isSmallScreen ? 'Accept' : 'Accept Order'),
+                  ),
+                ),
+              ],
+            );
+          
+          case OrderStatus.confirmed:
+            return SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.restaurant_menu_outlined, size: 18),
+                onPressed: () => _updateOrderStatus(order.id, OrderStatus.preparing),
+                label: const Text('Start Preparing'),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _updateOrderStatus(order.id, OrderStatus.confirmed),
-                child: const Text('Accept'),
+            );
+          
+          case OrderStatus.preparing:
+            return SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.done_all_outlined, size: 18),
+                onPressed: () => _updateOrderStatus(order.id, OrderStatus.ready),
+                label: const Text('Mark as Ready'),
               ),
-            ),
-          ],
-        );
-      
-      case OrderStatus.confirmed:
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _updateOrderStatus(order.id, OrderStatus.preparing),
-            child: const Text('Start Preparing'),
-          ),
-        );
-      
-      case OrderStatus.preparing:
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _updateOrderStatus(order.id, OrderStatus.ready),
-            child: const Text('Mark as Ready'),
-          ),
-        );
-      
-      case OrderStatus.ready:
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _updateOrderStatus(order.id, OrderStatus.outForDelivery),
-            child: const Text('Out for Delivery'),
-          ),
-        );
-      
-      case OrderStatus.outForDelivery:
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _updateOrderStatus(order.id, OrderStatus.delivered),
-            child: const Text('Mark as Delivered'),
-          ),
-        );
-      
-      default:
-        return const SizedBox();
-    }
+            );
+          
+          case OrderStatus.ready:
+            return SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.delivery_dining_outlined, size: 18),
+                onPressed: () => _updateOrderStatus(order.id, OrderStatus.outForDelivery),
+                label: const Text('Out for Delivery'),
+              ),
+            );
+          
+          case OrderStatus.outForDelivery:
+            return SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                onPressed: () => _updateOrderStatus(order.id, OrderStatus.delivered),
+                label: const Text('Mark as Delivered'),
+              ),
+            );
+          
+          default:
+            return const SizedBox();
+        }
+      },
+    );
+  }
+
+  bool _shouldShowActions(OrderStatus status) {
+    return status == OrderStatus.pending ||
+        status == OrderStatus.confirmed ||
+        status == OrderStatus.preparing ||
+        status == OrderStatus.ready ||
+        status == OrderStatus.outForDelivery;
   }
 
   void _updateOrderStatus(String orderId, OrderStatus newStatus) async {
@@ -475,6 +637,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
           SnackBar(
             content: Text('Order status updated to ${_getStatusText(newStatus)}!'),
             backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -482,8 +645,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating order: $e'),
+            content: Text('Error updating order: ${e.toString()}'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -507,36 +671,32 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       case OrderStatus.cancelled:
         return Colors.red;
       case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return Colors.green.shade300;
       case OrderStatus.readyForDelivery:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return Colors.blue.shade300;
     }
   }
 
   IconData _getStatusIcon(OrderStatus status) {
     switch (status) {
       case OrderStatus.pending:
-        return Icons.schedule;
+        return Icons.access_time;
       case OrderStatus.confirmed:
-        return Icons.check_circle;
+        return Icons.check_circle_outline;
       case OrderStatus.preparing:
-        return Icons.restaurant;
+        return Icons.restaurant_menu;
       case OrderStatus.ready:
-        return Icons.done_all;
+        return Icons.emoji_food_beverage_outlined;
       case OrderStatus.outForDelivery:
         return Icons.delivery_dining;
       case OrderStatus.delivered:
-        return Icons.check_circle_outline;
+        return Icons.check_circle;
       case OrderStatus.cancelled:
         return Icons.cancel;
       case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return Icons.check_circle_outline;
       case OrderStatus.readyForDelivery:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return Icons.directions_bike;
     }
   }
 
@@ -557,11 +717,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       case OrderStatus.cancelled:
         return 'Cancelled';
       case OrderStatus.delerved:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return 'Delivered';
       case OrderStatus.readyForDelivery:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return 'Ready for Delivery';
     }
   }
 }

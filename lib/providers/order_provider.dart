@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/order_model.dart';
 
 // Error handling utility
@@ -24,18 +24,11 @@ class FirestoreErrorHandler {
   }
 }
 
-// Provider for checking if indexes are ready
-final indexesReadyProvider = FutureProvider.family<bool, List<String>>((ref, indexUrls) async {
-  // In a real app, you might want to implement actual index status checking
-  // For now, we'll assume indexes are ready after a short delay
-  await Future.delayed(const Duration(seconds: 5));
-  return true;
-});
-
-// Enhanced user orders provider with error handling
+// Enhanced user orders provider with better error handling
 final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, userId) {
   final streamController = StreamController<List<OrderModel>>();
   bool hasShownIndexError = false;
+  bool isIndexBuilding = false;
   
   final subscription = FirebaseFirestore.instance
       .collection('orders')
@@ -46,8 +39,11 @@ final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref,
         if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
           if (!hasShownIndexError) {
             hasShownIndexError = true;
-            // Emit empty list with a special indicator that index is being built
-            streamController.add([]);
+            isIndexBuilding = true;
+            // Use fallback query when index is being built
+            ref.read(userOrdersFallbackProvider(userId)).whenData((fallbackOrders) {
+              streamController.add(fallbackOrders);
+            });
           }
         } else {
           // Re-throw other errors
@@ -55,6 +51,11 @@ final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref,
         }
       })
       .listen((snapshot) {
+        // Reset index building flag when we get a successful response
+        if (isIndexBuilding) {
+          isIndexBuilding = false;
+        }
+        
         final orders = snapshot.docs
             .map((doc) => OrderModel.fromFirestore(doc))
             .toList();
@@ -73,6 +74,7 @@ final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref,
 final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
   final streamController = StreamController<List<OrderModel>>();
   bool hasShownIndexError = false;
+  bool isIndexBuilding = false;
   
   final subscription = FirebaseFirestore.instance
       .collection('orders')
@@ -83,13 +85,29 @@ final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>
         if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
           if (!hasShownIndexError) {
             hasShownIndexError = true;
-            streamController.add([]);
+            isIndexBuilding = true;
+            // Use fallback query when index is being built
+            FirebaseFirestore.instance
+                .collection('orders')
+                .where('restaurantId', isEqualTo: restaurantId)
+                .get()
+                .then((snapshot) {
+                  final orders = snapshot.docs
+                      .map((doc) => OrderModel.fromFirestore(doc))
+                      .toList();
+                  orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                  streamController.add(orders);
+                });
           }
         } else {
           streamController.addError(error, stackTrace);
         }
       })
       .listen((snapshot) {
+        if (isIndexBuilding) {
+          isIndexBuilding = false;
+        }
+        
         final orders = snapshot.docs
             .map((doc) => OrderModel.fromFirestore(doc))
             .toList();
@@ -105,26 +123,27 @@ final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>
 });
 
 // Fallback provider for when indexes aren't ready
-final userOrdersFallbackProvider = StreamProvider.family<List<OrderModel>, String>((ref, userId) {
+final userOrdersFallbackProvider = FutureProvider.family<List<OrderModel>, String>((ref, userId) async {
   // Simple query without ordering as fallback
-  return FirebaseFirestore.instance
+  final snapshot = await FirebaseFirestore.instance
       .collection('orders')
       .where('userId', isEqualTo: userId)
-      .snapshots()
-      .map((snapshot) {
-        final orders = snapshot.docs
-            .map((doc) => OrderModel.fromFirestore(doc))
-            .toList();
-        // Manual sorting as fallback
-        orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return orders;
-      });
+      .get();
+
+  final orders = snapshot.docs
+      .map((doc) => OrderModel.fromFirestore(doc))
+      .toList();
+  
+  // Manual sorting as fallback
+  orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return orders;
 });
 
 // All orders provider with error handling
 final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
   final streamController = StreamController<List<OrderModel>>();
   bool hasShownIndexError = false;
+  bool isIndexBuilding = false;
   
   final subscription = FirebaseFirestore.instance
       .collection('orders')
@@ -134,13 +153,28 @@ final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
         if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
           if (!hasShownIndexError) {
             hasShownIndexError = true;
-            streamController.add([]);
+            isIndexBuilding = true;
+            // Use fallback query when index is being built
+            FirebaseFirestore.instance
+                .collection('orders')
+                .get()
+                .then((snapshot) {
+                  final orders = snapshot.docs
+                      .map((doc) => OrderModel.fromFirestore(doc))
+                      .toList();
+                  orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                  streamController.add(orders);
+                });
           }
         } else {
           streamController.addError(error, stackTrace);
         }
       })
       .listen((snapshot) {
+        if (isIndexBuilding) {
+          isIndexBuilding = false;
+        }
+        
         final orders = snapshot.docs
             .map((doc) => OrderModel.fromFirestore(doc))
             .toList();
@@ -167,7 +201,11 @@ final orderProvider = StreamProvider.family<OrderModel?, String>((ref, orderId) 
         streamController.addError(error, stackTrace);
       })
       .listen((doc) {
-        streamController.add(doc.exists ? OrderModel.fromFirestore(doc) : null);
+        if (doc.exists) {
+          streamController.add(OrderModel.fromFirestore(doc));
+        } else {
+          streamController.add(null);
+        }
       });
 
   ref.onDispose(() {
@@ -182,6 +220,7 @@ final orderProvider = StreamProvider.family<OrderModel?, String>((ref, orderId) 
 final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
   final streamController = StreamController<List<OrderModel>>();
   bool hasShownIndexError = false;
+  bool isIndexBuilding = false;
   
   final subscription = FirebaseFirestore.instance
       .collection('orders')
@@ -198,13 +237,35 @@ final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, S
         if (error is FirebaseException && FirestoreErrorHandler.isIndexError(error)) {
           if (!hasShownIndexError) {
             hasShownIndexError = true;
-            streamController.add([]);
+            isIndexBuilding = true;
+            // Use fallback query when index is being built
+            FirebaseFirestore.instance
+                .collection('orders')
+                .where('restaurantId', isEqualTo: restaurantId)
+                .where('status', whereIn: [
+                  'pending',
+                  'confirmed', 
+                  'preparing',
+                  'ready'
+                ])
+                .get()
+                .then((snapshot) {
+                  final orders = snapshot.docs
+                      .map((doc) => OrderModel.fromFirestore(doc))
+                      .toList();
+                  orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                  streamController.add(orders);
+                });
           }
         } else {
           streamController.addError(error, stackTrace);
         }
       })
       .listen((snapshot) {
+        if (isIndexBuilding) {
+          isIndexBuilding = false;
+        }
+        
         final orders = snapshot.docs
             .map((doc) => OrderModel.fromFirestore(doc))
             .toList();
@@ -241,8 +302,8 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       state = const AsyncValue.data(null);
       return docRef.id;
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
       rethrow;
     }
   }
@@ -251,9 +312,9 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       
-      final updates = {
+      final updates = <String, dynamic>{
         'status': status.toString().split('.').last,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.now(),
       };
 
       if (status == OrderStatus.confirmed) {
@@ -285,7 +346,7 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       await _firestore.collection('orders').doc(orderId).update({
         'status': OrderStatus.cancelled.toString().split('.').last,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.now(),
       });
       
       state = const AsyncValue.data(null);
@@ -306,7 +367,7 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       await _firestore.collection('orders').doc(orderId).update({
         'driverId': driverId,
         'status': OrderStatus.outForDelivery.toString().split('.').last,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.now(),
       });
       
       state = const AsyncValue.data(null);
@@ -326,8 +387,8 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       await _firestore.collection('orders').doc(orderId).update({
         'status': OrderStatus.delivered.toString().split('.').last,
-        'deliveredAt': Timestamp.fromDate(DateTime.now()),
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'deliveredAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
       });
       
       state = const AsyncValue.data(null);
@@ -360,8 +421,7 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
       }
 
       // Try with ordering first
-      Query orderedQuery = query.orderBy('createdAt', descending: true);
-      final snapshot = await orderedQuery.get();
+      final snapshot = await query.orderBy('createdAt', descending: true).get();
       final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
 
       return _calculateOrderAnalytics(orders);
@@ -454,8 +514,7 @@ class OrderManagementNotifier extends StateNotifier<AsyncValue<void>> {
         query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
       }
 
-      Query orderedQuery = query.orderBy('createdAt', descending: true);
-      final snapshot = await orderedQuery.get();
+      final snapshot = await query.orderBy('createdAt', descending: true).get();
       final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
 
       return _calculatePlatformAnalytics(orders);
