@@ -41,9 +41,19 @@ final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref,
             hasShownIndexError = true;
             isIndexBuilding = true;
             // Use fallback query when index is being built
-            ref.read(userOrdersFallbackProvider(userId)).whenData((fallbackOrders) {
-              streamController.add(fallbackOrders);
-            });
+            FirebaseFirestore.instance
+                .collection('orders')
+                .where('userId', isEqualTo: userId)
+                .get()
+                .then((snapshot) {
+                  final orders = snapshot.docs
+                      .map((doc) => OrderModel.fromFirestore(doc))
+                      .toList();
+                  orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                  streamController.add(orders);
+                }).catchError((fallbackError) {
+                  streamController.addError(fallbackError, stackTrace);
+                });
           }
         } else {
           // Re-throw other errors
@@ -54,6 +64,7 @@ final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref,
         // Reset index building flag when we get a successful response
         if (isIndexBuilding) {
           isIndexBuilding = false;
+          hasShownIndexError = false;
         }
         
         final orders = snapshot.docs
@@ -97,6 +108,8 @@ final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>
                       .toList();
                   orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
                   streamController.add(orders);
+                }).catchError((fallbackError) {
+                  streamController.addError(fallbackError, stackTrace);
                 });
           }
         } else {
@@ -106,6 +119,7 @@ final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>
       .listen((snapshot) {
         if (isIndexBuilding) {
           isIndexBuilding = false;
+          hasShownIndexError = false;
         }
         
         final orders = snapshot.docs
@@ -120,23 +134,6 @@ final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>
   });
 
   return streamController.stream;
-});
-
-// Fallback provider for when indexes aren't ready
-final userOrdersFallbackProvider = FutureProvider.family<List<OrderModel>, String>((ref, userId) async {
-  // Simple query without ordering as fallback
-  final snapshot = await FirebaseFirestore.instance
-      .collection('orders')
-      .where('userId', isEqualTo: userId)
-      .get();
-
-  final orders = snapshot.docs
-      .map((doc) => OrderModel.fromFirestore(doc))
-      .toList();
-  
-  // Manual sorting as fallback
-  orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  return orders;
 });
 
 // All orders provider with error handling
@@ -164,6 +161,8 @@ final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
                       .toList();
                   orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
                   streamController.add(orders);
+                }).catchError((fallbackError) {
+                  streamController.addError(fallbackError, stackTrace);
                 });
           }
         } else {
@@ -173,6 +172,7 @@ final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
       .listen((snapshot) {
         if (isIndexBuilding) {
           isIndexBuilding = false;
+          hasShownIndexError = false;
         }
         
         final orders = snapshot.docs
@@ -255,6 +255,8 @@ final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, S
                       .toList();
                   orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
                   streamController.add(orders);
+                }).catchError((fallbackError) {
+                  streamController.addError(fallbackError, stackTrace);
                 });
           }
         } else {
@@ -264,6 +266,7 @@ final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, S
       .listen((snapshot) {
         if (isIndexBuilding) {
           isIndexBuilding = false;
+          hasShownIndexError = false;
         }
         
         final orders = snapshot.docs
