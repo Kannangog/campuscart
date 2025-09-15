@@ -74,6 +74,8 @@ class UserModel {
     );
   }
 
+  get location => null;
+
   UserModel copyWith({
     String? id,
     String? email,
