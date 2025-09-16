@@ -1,5 +1,6 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, unused_result
 
+import 'package:campuscart/models/restaurant_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -8,6 +9,19 @@ import '../../providers/auth_provider.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../providers/order_provider.dart';
 import '../../models/order_model.dart';
+
+// Create a provider for the selected restaurant to avoid repeated computation
+final selectedRestaurantProvider = Provider<RestaurantModel?>((ref) {
+  final authState = ref.watch(authStateProvider);
+  final user = authState.value;
+  if (user == null) return null;
+  
+  final restaurants = ref.watch(restaurantsByOwnerProvider(user.uid));
+  return restaurants.maybeWhen(
+    data: (restaurantList) => restaurantList.isNotEmpty ? restaurantList.first : null,
+    orElse: () => null,
+  );
+});
 
 class OrdersManagementScreen extends ConsumerStatefulWidget {
   const OrdersManagementScreen({super.key});
@@ -34,157 +48,154 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final user = authState.value;
-
-    if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Please login to manage orders')),
-      );
-    }
-
-    final restaurants = ref.watch(restaurantsByOwnerProvider(user.uid));
+    final restaurant = ref.watch(selectedRestaurantProvider);
     
-    return restaurants.when(
-      data: (restaurantList) {
-        if (restaurantList.isEmpty) {
-          return _buildNoRestaurant(context);
-        }
-        
-        final restaurant = restaurantList.first;
-        final ordersAsync = ref.watch(restaurantOrdersProvider(restaurant.id));
-        
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Orders Management'),
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            elevation: 1,
-            bottom: TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              indicatorColor: Theme.of(context).colorScheme.primary,
-              labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor: Colors.grey,
-              tabs: const [
-                Tab(text: 'New Orders'),
-                Tab(text: 'Preparing'),
-                Tab(text: 'Ready'),
-                Tab(text: 'Completed'),
-              ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Orders Management'),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 1,
+        bottom: restaurant != null ? TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          indicatorColor: Theme.of(context).colorScheme.primary,
+          labelColor: Theme.of(context).colorScheme.primary,
+          unselectedLabelColor: Colors.grey,
+          tabs: const [
+            Tab(text: 'New Orders'),
+            Tab(text: 'Preparing'),
+            Tab(text: 'Ready'),
+            Tab(text: 'Completed'),
+          ],
+        ) : null,
+      ),
+      body: restaurant == null 
+          ? _buildNoRestaurant(context) 
+          : _buildOrdersContent(restaurant),
+    );
+  }
+
+  Widget _buildOrdersContent(RestaurantModel restaurant) {
+    final ordersAsync = ref.watch(restaurantOrdersProvider(restaurant.id));
+    
+    return ordersAsync.when(
+      data: (orderList) {
+        // Use separate providers for each tab to minimize rebuilds
+        return TabBarView(
+          controller: _tabController,
+          children: [
+            _OrdersTabView(
+              orders: orderList,
+              statuses: const [OrderStatus.pending, OrderStatus.confirmed],
             ),
-          ),
-          body: ordersAsync.when(
-            data: (orderList) {
-              return TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildOrdersList(orderList, [OrderStatus.pending, OrderStatus.confirmed]),
-                  _buildOrdersList(orderList, [OrderStatus.preparing]),
-                  _buildOrdersList(orderList, [OrderStatus.ready, OrderStatus.outForDelivery]),
-                  _buildOrdersList(orderList, [OrderStatus.delivered, OrderStatus.cancelled]),
-                ],
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stack) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Text(
-                      'Error loading orders: ${error.toString()}',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => ref.refresh(restaurantOrdersProvider(restaurant.id)),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
+            _OrdersTabView(
+              orders: orderList,
+              statuses: const [OrderStatus.preparing],
             ),
-          ),
+            _OrdersTabView(
+              orders: orderList,
+              statuses: const [OrderStatus.ready, OrderStatus.outForDelivery],
+            ),
+            _OrdersTabView(
+              orders: orderList,
+              statuses: const [OrderStatus.delivered, OrderStatus.cancelled],
+            ),
+          ],
         );
       },
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (error, stack) => Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text('Error: ${error.toString()}'),
-          ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                'Error loading orders: ${error.toString()}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => ref.refresh(restaurantOrdersProvider(restaurant.id)),
+              child: const Text('Retry'),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildNoRestaurant(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Orders Management'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        elevation: 1,
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.restaurant_menu_outlined,
-                size: 120,
-                color: Colors.grey.shade400,
-              ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
-              
-              const SizedBox(height: 24),
-              
-              Text(
-                'No Restaurant Found',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.bold,
-                ),
-              ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
-              
-              const SizedBox(height: 12),
-              
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Text(
-                  'Please create a restaurant first to manage orders',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey.shade600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ).animate().fadeIn(delay: 400.ms),
-              
-              const SizedBox(height: 24),
-              
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Navigate to restaurant creation screen
-                },
-                icon: const Icon(Icons.add_business),
-                label: const Text('Create Restaurant'),
+    return Center(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.restaurant_menu_outlined,
+              size: 120,
+              color: Colors.grey.shade400,
+            ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
+            
+            const SizedBox(height: 24),
+            
+            Text(
+              'No Restaurant Found',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
+            ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
+            
+            const SizedBox(height: 12),
+            
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(
+                'Please create a restaurant first to manage orders',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ).animate().fadeIn(delay: 400.ms),
+            
+            const SizedBox(height: 24),
+            
+            ElevatedButton.icon(
+              onPressed: () {
+                // Navigate to restaurant creation screen
+              },
+              icon: const Icon(Icons.add_business),
+              label: const Text('Create Restaurant'),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildOrdersList(List<OrderModel> allOrders, List<OrderStatus> statuses) {
-    final filteredOrders = allOrders.where((order) => statuses.contains(order.status)).toList();
-    filteredOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+// Separate widget for each tab to minimize rebuilds
+class _OrdersTabView extends ConsumerWidget {
+  final List<OrderModel> orders;
+  final List<OrderStatus> statuses;
+  
+  const _OrdersTabView({
+    required this.orders,
+    required this.statuses,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filteredOrders = orders
+        .where((order) => statuses.contains(order.status))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     
     if (filteredOrders.isEmpty) {
       return Center(
@@ -218,12 +229,43 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
       itemCount: filteredOrders.length,
       itemBuilder: (context, index) {
         final order = filteredOrders[index];
-        return _buildOrderCard(context, order, index);
+        return _OrderCard(
+          order: order,
+          index: index,
+          onStatusUpdated: () {
+            // Refresh the orders list when status changes
+            final restaurant = ref.read(selectedRestaurantProvider);
+            if (restaurant != null) {
+              ref.refresh(restaurantOrdersProvider(restaurant.id));
+            }
+          },
+        );
       },
     );
   }
+}
 
-  Widget _buildOrderCard(BuildContext context, OrderModel order, int index) {
+// Separate widget for order card to optimize performance
+class _OrderCard extends ConsumerStatefulWidget {
+  final OrderModel order;
+  final int index;
+  final VoidCallback onStatusUpdated;
+
+  const _OrderCard({
+    required this.order,
+    required this.index,
+    required this.onStatusUpdated,
+  });
+
+  @override
+  ConsumerState<_OrderCard> createState() => _OrderCardState();
+}
+
+class _OrderCardState extends ConsumerState<_OrderCard> {
+  bool _isUpdating = false;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Card(
@@ -237,17 +279,17 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _getStatusColor(order.status).withOpacity(0.1),
+              color: _getStatusColor(widget.order.status).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              _getStatusIcon(order.status),
-              color: _getStatusColor(order.status),
+              _getStatusIcon(widget.order.status),
+              color: _getStatusColor(widget.order.status),
               size: 20,
             ),
           ),
           title: Text(
-            'Order #${order.id.substring(0, 8).toUpperCase()}',
+            'Order #${widget.order.id.substring(0, 8).toUpperCase()}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           subtitle: Column(
@@ -255,12 +297,12 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
             children: [
               const SizedBox(height: 4),
               Text(
-                '${order.totalItems} items • ₹${order.total.toStringAsFixed(2)}',
+                '${widget.order.totalItems} items • ₹${widget.order.total.toStringAsFixed(2)}',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
               const SizedBox(height: 4),
               Text(
-                DateFormat('MMM dd, yyyy • hh:mm a').format(order.createdAt),
+                DateFormat('MMM dd, yyyy • hh:mm a').format(widget.order.createdAt),
                 style: TextStyle(
                   color: Colors.grey.shade500,
                   fontSize: 12,
@@ -268,7 +310,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
               ),
             ],
           ),
-          trailing: _buildStatusChip(order.status),
+          trailing: _buildStatusChip(widget.order.status),
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
@@ -290,7 +332,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                       Icon(Icons.person_outline, size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 8),
                       Text(
-                        order.userName,
+                        widget.order.userName,
                         style: TextStyle(color: Colors.grey.shade800),
                       ),
                     ],
@@ -301,7 +343,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                       Icon(Icons.phone_outlined, size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 8),
                       Text(
-                        order.userPhone,
+                        widget.order.userPhone,
                         style: TextStyle(color: Colors.grey.shade800),
                       ),
                     ],
@@ -321,7 +363,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...order.items.map((item) => Padding(
+                  ...widget.order.items.map((item) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       children: [
@@ -378,14 +420,14 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildSummaryRow('Subtotal', '₹${order.subtotal.toStringAsFixed(2)}'),
+                  _buildSummaryRow('Subtotal', '₹${widget.order.subtotal.toStringAsFixed(2)}'),
                   const SizedBox(height: 4),
-                  _buildSummaryRow('Delivery Fee', '₹${order.deliveryFee.toStringAsFixed(2)}'),
+                  _buildSummaryRow('Delivery Fee', '₹${widget.order.deliveryFee.toStringAsFixed(2)}'),
                   const SizedBox(height: 4),
-                  _buildSummaryRow('Tax', '₹${order.tax.toStringAsFixed(2)}'),
-                  if (order.discount > 0) ...[
+                  _buildSummaryRow('Tax', '₹${widget.order.tax.toStringAsFixed(2)}'),
+                  if (widget.order.discount > 0) ...[
                     const SizedBox(height: 4),
-                    _buildSummaryRow('Discount', '-₹${order.discount.toStringAsFixed(2)}', 
+                    _buildSummaryRow('Discount', '-₹${widget.order.discount.toStringAsFixed(2)}', 
                       isDiscount: true),
                   ],
                   const SizedBox(height: 8),
@@ -398,7 +440,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                         fontWeight: FontWeight.bold,
                       )),
                       Text(
-                        '₹${order.total.toStringAsFixed(2)}',
+                        '₹${widget.order.total.toStringAsFixed(2)}',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.primary,
@@ -428,14 +470,14 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          order.deliveryAddress,
+                          widget.order.deliveryAddress,
                           style: TextStyle(color: Colors.grey.shade800),
                         ),
                       ),
                     ],
                   ),
                   
-                  if (order.specialInstructions != null && order.specialInstructions!.isNotEmpty) ...[
+                  if (widget.order.specialInstructions != null && widget.order.specialInstructions!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(
                       'SPECIAL INSTRUCTIONS',
@@ -454,7 +496,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        order.specialInstructions!,
+                        widget.order.specialInstructions!,
                         style: TextStyle(
                           color: Colors.amber.shade800,
                           fontStyle: FontStyle.italic,
@@ -482,7 +524,7 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                       Icon(Icons.payment_outlined, size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 8),
                       Text(
-                        '${order.paymentMethod.toUpperCase()} • ${order.paymentStatus.toUpperCase()}',
+                        '${widget.order.paymentMethod.toUpperCase()} • ${widget.order.paymentStatus.toUpperCase()}',
                         style: TextStyle(color: Colors.grey.shade800),
                       ),
                     ],
@@ -491,14 +533,15 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
                   const SizedBox(height: 24),
                   
                   // Action Buttons
-                  if (_shouldShowActions(order.status)) _buildActionButtons(context, order),
+                  if (_shouldShowActions(widget.order.status)) 
+                    _buildActionButtons(context, widget.order),
                 ],
               ),
             ),
           ],
         ),
       ),
-    ).animate().fadeIn(delay: (index * 100).ms).slideY(begin: 0.3);
+    ).animate().fadeIn(delay: (widget.index * 100).ms).slideY(begin: 0.3);
   }
 
   Widget _buildSummaryRow(String label, String value, {bool isDiscount = false}) {
@@ -535,6 +578,10 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
   }
 
   Widget _buildActionButtons(BuildContext context, OrderModel order) {
+    if (_isUpdating) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
     return LayoutBuilder(
       builder: (context, constraints) {
         final isSmallScreen = constraints.maxWidth < 400;
@@ -628,10 +675,16 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         status == OrderStatus.outForDelivery;
   }
 
-void _updateOrderStatus(String orderId, OrderStatus newStatus) async {
+  Future<void> _updateOrderStatus(String orderId, OrderStatus newStatus) async {
+    setState(() {
+      _isUpdating = true;
+    });
+    
     try {
-      // Remove .notifier and access the service directly
       await ref.read(orderManagementProvider).updateOrderStatus(orderId, newStatus);
+      
+      // Refresh the orders list to get the updated data
+      widget.onStatusUpdated();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -651,6 +704,12 @@ void _updateOrderStatus(String orderId, OrderStatus newStatus) async {
             behavior: SnackBarBehavior.floating,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
       }
     }
   }
