@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -135,7 +137,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
         secondary: Colors.lightGreen[300],
         surface: Colors.lightGreen[50],
         onSurface: Colors.green[900],
-        surfaceVariant: Colors.lightGreen[100],
+        surfaceContainerHighest: Colors.lightGreen[100],
       ),
     );
     
@@ -157,7 +159,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: lightGreenTheme.colorScheme.surfaceVariant,
+                    color: lightGreenTheme.colorScheme.surfaceContainerHighest,
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
@@ -605,7 +607,7 @@ void showDeleteItemDialog(BuildContext context, WidgetRef ref, MenuItemModel ite
     builder: (context) => Theme(
       data: lightGreenTheme,
       child: AlertDialog(
-        title: Text('Delete Menu Item',
+        title: const Text('Delete Menu Item',
           style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
         backgroundColor: lightGreenTheme.colorScheme.surface,
         content: Text('Are you sure you want to delete "${item.name}"?',

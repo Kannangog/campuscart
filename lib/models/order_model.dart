@@ -352,6 +352,7 @@ class OrderModel {
         return 'Cancelled';
       case OrderStatus.delerved:
         // TODO: Handle this case.
+        
         throw UnimplementedError();
     }
   }

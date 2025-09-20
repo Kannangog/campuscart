@@ -66,6 +66,7 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
         if (_profileImage != null) {
           // Implement image upload logic here
           // imageUrl = await uploadImage(_profileImage!);
+          
         }
 
         await ref.read(authProvider.notifier).updateUserProfile(

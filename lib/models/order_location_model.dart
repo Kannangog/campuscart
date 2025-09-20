@@ -18,8 +18,8 @@ class OrderLocationModel {
   final String userName;
   final String userPhone;
   final String deliveryAddress;
-  final double deliveryLatitude;
-  final double deliveryLongitude;
+  final double? deliveryLatitude; // Changed to nullable
+  final double? deliveryLongitude; // Changed to nullable
   final OrderStatus status;
   final double total;
   final List<OrderItem> items;
@@ -36,8 +36,8 @@ class OrderLocationModel {
     required this.userName,
     required this.userPhone,
     required this.deliveryAddress,
-    required this.deliveryLatitude,
-    required this.deliveryLongitude,
+    required this.deliveryLatitude, // Required but nullable
+    required this.deliveryLongitude, // Required but nullable
     required this.status,
     required this.total,
     required this.items,
@@ -81,6 +81,15 @@ class OrderLocationModel {
       driverLocation = LatLng(geoPoint.latitude, geoPoint.longitude);
     }
 
+    // Parse delivery location - use null instead of 0.0
+    final double? deliveryLatitude = data['deliveryLatitude'] != null 
+        ? (data['deliveryLatitude'] as num).toDouble() 
+        : null;
+    
+    final double? deliveryLongitude = data['deliveryLongitude'] != null 
+        ? (data['deliveryLongitude'] as num).toDouble() 
+        : null;
+
     return OrderLocationModel(
       id: doc.id,
       restaurantId: data['restaurantId'] ?? '',
@@ -88,13 +97,13 @@ class OrderLocationModel {
       userName: data['userName'] ?? '',
       userPhone: data['userPhone'] ?? '',
       deliveryAddress: data['deliveryAddress'] ?? '',
-      deliveryLatitude: (data['deliveryLatitude'] ?? 0.0).toDouble(),
-      deliveryLongitude: (data['deliveryLongitude'] ?? 0.0).toDouble(),
+      deliveryLatitude: deliveryLatitude,
+      deliveryLongitude: deliveryLongitude,
       status: status,
       total: (data['total'] ?? 0.0).toDouble(),
       items: items,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       driverId: data['driverId'],
       driverLocation: driverLocation,
       estimatedDeliveryTime: data['estimatedDeliveryTime'] != null
@@ -128,6 +137,7 @@ class OrderLocationModel {
   }
 
   OrderLocationModel copyWith({
+    String? id,
     String? restaurantId,
     String? userId,
     String? userName,
@@ -145,7 +155,7 @@ class OrderLocationModel {
     DateTime? estimatedDeliveryTime,
   }) {
     return OrderLocationModel(
-      id: id,
+      id: id ?? this.id,
       restaurantId: restaurantId ?? this.restaurantId,
       userId: userId ?? this.userId,
       userName: userName ?? this.userName,
@@ -169,8 +179,12 @@ class OrderLocationModel {
   
   bool get isOutForDelivery => status == OrderStatus.outForDelivery;
   
-  LatLng get deliveryLatLng => LatLng(deliveryLatitude, deliveryLongitude);
+  LatLng? get deliveryLatLng => (deliveryLatitude != null && deliveryLongitude != null)
+      ? LatLng(deliveryLatitude!, deliveryLongitude!)
+      : null;
   
+  bool get hasLocation => deliveryLatitude != null && deliveryLongitude != null;
+
   String get statusText {
     switch (status) {
       case OrderStatus.pending:
@@ -188,6 +202,24 @@ class OrderLocationModel {
       case OrderStatus.cancelled:
         return 'Cancelled';
     }
+  }
+
+  static OrderLocationModel empty() {
+    return OrderLocationModel(
+      id: '',
+      restaurantId: '',
+      userId: '',
+      userName: '',
+      userPhone: '',
+      deliveryAddress: '',
+      deliveryLatitude: null, // Changed to null
+      deliveryLongitude: null, // Changed to null
+      status: OrderStatus.pending,
+      total: 0.0,
+      items: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
   }
 }
 

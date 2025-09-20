@@ -6,8 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'analytics_screen.dart';
 import 'menu_management_screen.dart';
 import 'orders_management_screen.dart';
-import 'oders_location.dart';
-import 'restaurant_profile.dart';// Import the notifications screen
+import 'orders_location/oders_location_screen.dart';
+import 'restaurant_profile.dart';
+
+// Provider to manage notification counts across the app
+final notificationCountProvider = StateProvider<int>((ref) => 3);
 
 class RestaurantDashboard extends ConsumerStatefulWidget {
   const RestaurantDashboard({super.key});
@@ -58,8 +61,10 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
 
   @override
   Widget build(BuildContext context) {
+    final notificationCount = ref.watch(notificationCountProvider);
+    
     return Scaffold(
-      appBar: _currentIndex == 4 ? null : _buildAppBar(),
+      appBar: _currentIndex == 4 ? null : _buildAppBar(notificationCount),
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: IndexedStack(
@@ -67,11 +72,11 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
           children: _screens,
         ),
       ),
-      bottomNavigationBar: _buildAnimatedNavBar(),
+      bottomNavigationBar: _buildAnimatedNavBar(notificationCount),
     );
   }
 
-  Widget _buildAnimatedNavBar() {
+  Widget _buildAnimatedNavBar(int notificationCount) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.only(
@@ -119,20 +124,22 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
               label: 'Menu',
             ),
             NavigationDestination(
-              icon: _AnimatedNavIcon(
+              icon: _BadgeNavIcon(
                 index: 2,
                 currentIndex: _currentIndex,
                 icon: Icons.receipt_long_outlined,
                 activeIcon: Icons.receipt_long,
+                badgeCount: notificationCount,
               ),
               label: 'Orders',
             ),
             NavigationDestination(
-              icon: _AnimatedNavIcon(
+              icon: _BadgeNavIcon(
                 index: 3,
                 currentIndex: _currentIndex,
                 icon: Icons.location_on_outlined,
                 activeIcon: Icons.location_on,
+                badgeCount: notificationCount,
               ),
               label: 'Location',
             ),
@@ -151,19 +158,12 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
     );
   }
 
-  AppBar? _buildAppBar() {
+  AppBar? _buildAppBar(int notificationCount) {
     final Map<int, String> titles = {
       0: 'Analytics Dashboard',
       1: 'Menu Management',
       2: 'Orders Management',
       3: 'Orders Location',
-    };
-
-    // Removed the actions for screens 1, 2, and 3 as requested
-    final Map<int, List<Widget>> actions = {
-      // No actions for Menu Management (screen 1)
-      // No actions for Orders Management (screen 2)
-      // No actions for Orders Location (screen 3)
     };
 
     return AppBar(
@@ -183,44 +183,45 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
         ),
       ),
       actions: [
-        // Only show actions if they exist for the current screen
-        if (actions.containsKey(_currentIndex)) ...actions[_currentIndex]!,
-        
-        // Notification icon (always shown except on profile screen)
+        // Notification icon with badge (always shown except on profile screen)
         IconButton(
           icon: Stack(
             children: [
               const Icon(Icons.notifications_none_rounded),
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 12,
-                    minHeight: 12,
-                  ),
-                  child: const Text(
-                    '3',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 8,
+              if (notificationCount > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    textAlign: TextAlign.center,
+                    constraints: const BoxConstraints(
+                      minWidth: 12,
+                      minHeight: 12,
+                    ),
+                    child: Text(
+                      notificationCount > 9 ? '9+' : notificationCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
-              )
+                )
             ],
           ),
           onPressed: () {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const NotificationsScreen()),
-            );
+            ).then((_) {
+              // Reset notification count when returning from notifications
+              ref.read(notificationCountProvider.notifier).state = 0;
+            });
           },
         ),
         const SizedBox(width: 8),
@@ -296,6 +297,108 @@ class _AnimatedNavIconState extends State<_AnimatedNavIcon> with SingleTickerPro
       child: Icon(
         widget.index == widget.currentIndex ? widget.activeIcon : widget.icon,
         color: _colorAnimation.value,
+      ),
+    );
+  }
+}
+
+class _BadgeNavIcon extends StatefulWidget {
+  final int index;
+  final int currentIndex;
+  final IconData icon;
+  final IconData activeIcon;
+  final int badgeCount;
+
+  const _BadgeNavIcon({
+    required this.index,
+    required this.currentIndex,
+    required this.icon,
+    required this.activeIcon,
+    required this.badgeCount,
+  });
+
+  @override
+  State<_BadgeNavIcon> createState() => _BadgeNavIconState();
+}
+
+class _BadgeNavIconState extends State<_BadgeNavIcon> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<Color?> _colorAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    _colorAnimation = ColorTween(
+      begin: Colors.grey,
+      end: Colors.lightGreen,
+    ).animate(_controller);
+
+    if (widget.index == widget.currentIndex) {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _BadgeNavIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index == widget.currentIndex) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: Stack(
+        children: [
+          Icon(
+            widget.index == widget.currentIndex ? widget.activeIcon : widget.icon,
+            color: _colorAnimation.value,
+          ),
+          if (widget.badgeCount > 0)
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 247, 97, 95),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                constraints: const BoxConstraints(
+                  minWidth: 12,
+                  minHeight: 12,
+                ),
+                child: Text(
+                  widget.badgeCount > 9 ? '9+' : widget.badgeCount.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+        ],
       ),
     );
   }
