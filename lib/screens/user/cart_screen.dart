@@ -137,7 +137,7 @@ class CartScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        '\$${menuItem.price.toStringAsFixed(2)} each',
+                                        '₹${menuItem.price.toStringAsFixed(2)} each',
                                         style: TextStyle(
                                           color: Colors.grey.shade600,
                                           fontSize: 14,
@@ -145,7 +145,7 @@ class CartScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        'Total: \$${cartItem.totalPrice.toStringAsFixed(2)}',
+                                        'Total: ₹${cartItem.totalPrice.toStringAsFixed(2)}',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -248,29 +248,26 @@ class CartScreen extends ConsumerWidget {
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Subtotal'),
-                          Text('\$${cartState.subtotal.toStringAsFixed(2)}'),
-                        ],
+                      _buildOrderRow('Subtotal', '₹${cartState.subtotal.toStringAsFixed(2)}'),
+                      const SizedBox(height: 8),
+                      _buildOrderRow(
+                        'Delivery Fee',
+                        Row(
+                          children: [
+                            Text(
+                              '₹25.00',
+                              style: TextStyle(
+                                decoration: TextDecoration.lineThrough,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text('Free', style: TextStyle(color: Colors.green)),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Delivery Fee'),
-                          Text('\$${cartNotifier.calculateDeliveryFee().toStringAsFixed(2)}'),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Tax'),
-                          Text('\$${cartNotifier.calculateTax().toStringAsFixed(2)}'),
-                        ],
-                      ),
+                      _buildOrderRow('Convenience Fee', '₹5.00'),
                       const Divider(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -282,7 +279,7 @@ class CartScreen extends ConsumerWidget {
                             ),
                           ),
                           Text(
-                            '\$${cartNotifier.calculateTotal().toStringAsFixed(2)}',
+                            '₹${(cartState.subtotal + 5.0).toStringAsFixed(2)}',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: Theme.of(context).colorScheme.primary,
@@ -308,7 +305,7 @@ class CartScreen extends ConsumerWidget {
                             ),
                           ),
                           child: Text(
-                            'Proceed to Checkout (${cartState.totalItems} items)',
+                            'Place Order (${cartState.totalItems} items)',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -318,7 +315,7 @@ class CartScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
-                ).animate().fadeIn().slideY(begin: 0.3),
+                ),
               ],
             ),
     );
@@ -360,7 +357,11 @@ class CartScreen extends ConsumerWidget {
           ElevatedButton.icon(
             onPressed: () {
               // Navigate to restaurants screen
-              DefaultTabController.of(context).animateTo(1);
+              Navigator.of(context).pop(); // Go back to previous screen
+              // If using a tab controller, you might need to use:
+              // DefaultTabController.of(context)?.animateTo(1);
+              // But a better approach is to use a navigation state management
+              // For now, we'll just pop back and let the user navigate manually
             },
             icon: const Icon(Icons.restaurant),
             label: const Text('Browse Restaurants'),
@@ -373,6 +374,31 @@ class CartScreen extends ConsumerWidget {
           ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.3),
         ],
       ),
+    );
+  }
+
+  Widget _buildOrderRow(String label, dynamic value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey.shade700,
+            fontSize: 16,
+          ),
+        ),
+        if (value is String) 
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 16,
+            ),
+          ) 
+        else 
+          value,
+      ],
     );
   }
 

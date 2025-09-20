@@ -327,7 +327,7 @@ class OrderManagementService {
     }
   }
 
-  Future<void> cancelOrder(String orderId, {int retryCount = 0}) async {
+  Future<void> cancelOrder(String orderId, String text, {int retryCount = 0}) async {
     try {
       await _firestore.collection('orders').doc(orderId).update({
         'status': OrderStatus.cancelled.toString().split('.').last,
@@ -336,7 +336,7 @@ class OrderManagementService {
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
-        return cancelOrder(orderId, retryCount: retryCount + 1);
+        return cancelOrder(orderId, text, retryCount: retryCount + 1);
       }
       rethrow;
     }

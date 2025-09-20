@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
+import 'dart:math';
 import 'package:campuscart/models/order_model.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -29,19 +30,37 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
   final Completer<GoogleMapController> _controller = Completer();
   StreamSubscription<Position>? _positionSubscription;
   bool _isTrackingLocation = false;
+  OrderModel? _currentFocusedOrder;
 
   @override
   void initState() {
     super.initState();
     _updateMarkers();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusOnOldestActiveOrder();
+    });
   }
 
   @override
   void didUpdateWidget(covariant OrdersLocationMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // Check if any order status changed from delivered to non-delivered or vice versa
+    final oldDeliveredOrders = oldWidget.orders.where((o) => o.status == OrderStatus.delivered).toList();
+    final newDeliveredOrders = widget.orders.where((o) => o.status == OrderStatus.delivered).toList();
+    
     if (oldWidget.orders != widget.orders || 
-        oldWidget.restaurantLocation != widget.restaurantLocation) {
+        oldWidget.restaurantLocation != widget.restaurantLocation ||
+        oldDeliveredOrders.length != newDeliveredOrders.length) {
       _updateMarkers();
+      
+      // If the currently focused order was delivered, find the next nearest order
+      if (_currentFocusedOrder != null && 
+          _currentFocusedOrder!.status == OrderStatus.delivered) {
+        _focusOnNearestOrder();
+      } else if (_currentFocusedOrder == null) {
+        _focusOnOldestActiveOrder();
+      }
     }
   }
 
@@ -62,7 +81,7 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
       ),
     );
     
-    // Add order markers with different colors based on status
+    // Add order markers - all small and green by default
     for (var order in widget.orders) {
       final double lat = order.deliveryLatitude;
       final double lng = order.deliveryLongitude;
@@ -70,6 +89,7 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
       // Skip invalid coordinates
       if (lat == 0.0 && lng == 0.0) continue;
       
+      // Use small marker icon for all orders
       final marker = Marker(
         markerId: MarkerId(order.id),
         position: LatLng(lat, lng),
@@ -77,7 +97,7 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
           title: 'Order #${order.id.substring(0, 8)}',
           snippet: '${order.userName} - ${_getStatusText(order.status)}',
         ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(order.status)),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
         onTap: () {
           widget.onOrderSelected(order);
           _animateToPosition(LatLng(lat, lng));
@@ -89,21 +109,6 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
     }
     
     setState(() {});
-  }
-
-  double _getMarkerHue(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.preparing:
-        return BitmapDescriptor.hueBlue; // Blue for preparing
-      case OrderStatus.ready:
-        return BitmapDescriptor.hueOrange; // Orange for ready
-      case OrderStatus.outForDelivery:
-        return BitmapDescriptor.hueGreen; // Green for out for delivery
-      case OrderStatus.delivered:
-        return BitmapDescriptor.hueViolet; // Violet for delivered
-      default:
-        return BitmapDescriptor.hueRed; // Red for unknown
-    }
   }
 
   Future<void> _animateToPosition(LatLng position) async {
@@ -177,6 +182,75 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
     );
   }
 
+  // Focus on the oldest active (non-delivered) order
+  Future<void> _focusOnOldestActiveOrder() async {
+    final nonDeliveredOrders = widget.orders
+        .where((order) => order.status != OrderStatus.delivered)
+        .toList();
+        
+    if (nonDeliveredOrders.isEmpty) {
+      // If all orders are delivered, focus on restaurant
+      _currentFocusedOrder = null;
+      _centerOnRestaurant();
+      return;
+    }
+    
+    // Find the oldest order by creation time
+    nonDeliveredOrders.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final oldestOrder = nonDeliveredOrders.first;
+    
+    _currentFocusedOrder = oldestOrder;
+    _animateToPosition(LatLng(oldestOrder.deliveryLatitude, oldestOrder.deliveryLongitude));
+  }
+
+  // Focus on the nearest order to the restaurant that's not delivered
+  Future<void> _focusOnNearestOrder() async {
+    final nonDeliveredOrders = widget.orders
+        .where((order) => order.status != OrderStatus.delivered)
+        .toList();
+        
+    if (nonDeliveredOrders.isEmpty) {
+      // If all orders are delivered, focus on restaurant
+      _currentFocusedOrder = null;
+      _centerOnRestaurant();
+      return;
+    }
+    
+    // Find the order closest to the restaurant
+    OrderModel? nearestOrder;
+    double shortestDistance = double.maxFinite;
+    
+    for (final order in nonDeliveredOrders) {
+      final distance = _calculateDistance(
+        widget.restaurantLocation.latitude,
+        widget.restaurantLocation.longitude,
+        order.deliveryLatitude,
+        order.deliveryLongitude,
+      );
+      
+      if (distance < shortestDistance) {
+        shortestDistance = distance;
+        nearestOrder = order;
+      }
+    }
+    
+    if (nearestOrder != null) {
+      _currentFocusedOrder = nearestOrder;
+      _animateToPosition(LatLng(nearestOrder.deliveryLatitude, nearestOrder.deliveryLongitude));
+    }
+  }
+
+  // Calculate distance between two coordinates using Haversine formula
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const p = 0.017453292519943295; // Math.PI / 180
+    final a = 0.5 - 
+        cos((lat2 - lat1) * p) / 2 +
+        cos(lat1 * p) * cos(lat2 * p) *
+        (1 - cos((lon2 - lon1) * p)) / 2;
+    
+    return 12742 * asin(sqrt(a)); // 2 * R * asin(sqrt(a))
+  }
+
   Future<void> _toggleLocationTracking() async {
     if (_isTrackingLocation) {
       _positionSubscription?.cancel();
@@ -231,8 +305,8 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
             _controller.complete(controller);
             widget.onMapCreated(controller);
             
-            // Fit all markers after map is created
-            Future.delayed(const Duration(milliseconds: 500), _fitAllMarkers);
+            // Focus on oldest active order after map is created
+            Future.delayed(const Duration(milliseconds: 500), _focusOnOldestActiveOrder);
           },
           myLocationEnabled: false, // Disabled as per requirements
           myLocationButtonEnabled: false,
@@ -293,7 +367,7 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Active Orders: ${widget.orders.length}',
+                      'Active Orders: ${widget.orders.where((o) => o.status != OrderStatus.delivered).length}',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
@@ -314,6 +388,11 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
                           color: Colors.green,
                           count: widget.orders.where((o) => o.status == OrderStatus.outForDelivery).length,
                           label: 'Delivery',
+                        ),
+                        _StatusIndicator(
+                          color: Colors.purple,
+                          count: widget.orders.where((o) => o.status == OrderStatus.delivered).length,
+                          label: 'Delivered',
                         ),
                       ],
                     ),

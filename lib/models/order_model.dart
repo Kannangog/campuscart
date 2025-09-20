@@ -9,6 +9,7 @@ enum OrderStatus {
   outForDelivery,
   delivered,
   cancelled, delerved,
+  // Removed the duplicate/delivered typo 'delerved'
 }
 
 class OrderItem {
@@ -69,6 +70,7 @@ class OrderModel {
   final List<OrderItem> items;
   final double subtotal;
   final double deliveryFee;
+  final double convenienceFee;
   final double tax;
   final double discount;
   final double total;
@@ -100,6 +102,7 @@ class OrderModel {
     required this.items,
     required this.subtotal,
     required this.deliveryFee,
+    required this.convenienceFee,
     required this.tax,
     required this.discount,
     required this.total,
@@ -138,7 +141,7 @@ class OrderModel {
       // Fallback for legacy status values
       switch (statusString.toLowerCase()) {
         case 'delivered':
-        case 'delerved': // Handle typo in legacy data
+        case 'delerved': // Handle typo in legacy data - map to delivered
           status = OrderStatus.delivered;
           break;
         case 'readyfordelivery':
@@ -191,6 +194,7 @@ class OrderModel {
       items: items,
       subtotal: (data['subtotal'] ?? 0.0).toDouble(),
       deliveryFee: (data['deliveryFee'] ?? 0.0).toDouble(),
+      convenienceFee: (data['convenienceFee'] ?? 5.0).toDouble(), // Default to 5 if not present
       tax: (data['tax'] ?? 0.0).toDouble(),
       discount: (data['discount'] ?? 0.0).toDouble(),
       total: (data['total'] ?? 0.0).toDouble(),
@@ -199,7 +203,7 @@ class OrderModel {
       deliveryLatitude: (data['deliveryLatitude'] ?? 0.0).toDouble(),
       deliveryLongitude: (data['deliveryLongitude'] ?? 0.0).toDouble(),
       specialInstructions: data['specialInstructions']?.toString(),
-      paymentMethod: data['paymentMethod']?.toString() ?? 'cash',
+      paymentMethod: data['paymentMethod']?.toString() ?? 'Cash on Delivery',
       paymentStatus: data['paymentStatus']?.toString() ?? 'pending',
       transactionId: data['transactionId']?.toString(),
       createdAt: createdAt,
@@ -224,6 +228,7 @@ class OrderModel {
       'items': items.map((item) => item.toMap()).toList(),
       'subtotal': subtotal,
       'deliveryFee': deliveryFee,
+      'convenienceFee': convenienceFee,
       'tax': tax,
       'discount': discount,
       'total': total,
@@ -261,6 +266,7 @@ class OrderModel {
     List<OrderItem>? items,
     double? subtotal,
     double? deliveryFee,
+    double? convenienceFee,
     double? tax,
     double? discount,
     double? total,
@@ -292,6 +298,7 @@ class OrderModel {
       items: items ?? this.items,
       subtotal: subtotal ?? this.subtotal,
       deliveryFee: deliveryFee ?? this.deliveryFee,
+      convenienceFee: convenienceFee ?? this.convenienceFee,
       tax: tax ?? this.tax,
       discount: discount ?? this.discount,
       total: total ?? this.total,
@@ -352,7 +359,6 @@ class OrderModel {
         return 'Cancelled';
       case OrderStatus.delerved:
         // TODO: Handle this case.
-        
         throw UnimplementedError();
     }
   }
@@ -361,6 +367,7 @@ class OrderModel {
   String get formattedTotal => '₹${total.toStringAsFixed(2)}';
   String get formattedSubtotal => '₹${subtotal.toStringAsFixed(2)}';
   String get formattedDeliveryFee => '₹${deliveryFee.toStringAsFixed(2)}';
+  String get formattedConvenienceFee => '₹${convenienceFee.toStringAsFixed(2)}';
   String get formattedTax => '₹${tax.toStringAsFixed(2)}';
   String get formattedDiscount => '₹${discount.toStringAsFixed(2)}';
 

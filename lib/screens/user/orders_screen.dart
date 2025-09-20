@@ -6,11 +6,25 @@ import '../../providers/order_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/order_model.dart';
 
-class OrdersScreen extends ConsumerWidget {
+class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends ConsumerState<OrdersScreen> {
+  String _selectedFilter = 'All';
+  final List<String> _filterOptions = [
+    'All',
+    'Today',
+    'Yesterday',
+    'Last 7 days',
+    'This month'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
     final user = authState.value;
 
@@ -27,20 +41,76 @@ class OrdersScreen extends ConsumerWidget {
         title: const Text('My Orders'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          // Filter dropdown
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedFilter,
+                icon: const Icon(Icons.filter_list_rounded),
+                borderRadius: BorderRadius.circular(12),
+                items: _filterOptions.map((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedFilter = newValue!;
+                  });
+                },
+              ),
+            ),
+          ),
+        ],
       ),
       body: orders.when(
         data: (orderList) {
-          if (orderList.isEmpty) {
+          // Filter orders based on selected filter
+          final filteredOrders = _filterOrders(orderList, _selectedFilter);
+          
+          if (filteredOrders.isEmpty) {
             return _buildEmptyOrders(context);
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: orderList.length,
-            itemBuilder: (context, index) {
-              final order = orderList[index];
-              return _buildOrderCard(context, order, index, ref);
-            },
+          return Column(
+            children: [
+              // Filter chip bar
+              SizedBox(
+                height: 50,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: _filterOptions.map((filter) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: FilterChip(
+                        label: Text(filter),
+                        selected: _selectedFilter == filter,
+                        onSelected: (bool selected) {
+                          setState(() {
+                            _selectedFilter = selected ? filter : 'All';
+                          });
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredOrders.length,
+                  itemBuilder: (context, index) {
+                    final order = filteredOrders[index];
+                    return _buildOrderCard(context, order, index, ref);
+                  },
+                ),
+              ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -61,6 +131,41 @@ class OrdersScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  List<OrderModel> _filterOrders(List<OrderModel> orders, String filter) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final weekAgo = today.subtract(const Duration(days: 7));
+    final monthStart = DateTime(now.year, now.month, 1);
+
+    switch (filter) {
+      case 'Today':
+        return orders.where((order) {
+          final orderDate = DateTime(
+            order.createdAt.year,
+            order.createdAt.month,
+            order.createdAt.day,
+          );
+          return orderDate == today;
+        }).toList();
+      case 'Yesterday':
+        return orders.where((order) {
+          final orderDate = DateTime(
+            order.createdAt.year,
+            order.createdAt.month,
+            order.createdAt.day,
+          );
+          return orderDate == yesterday;
+        }).toList();
+      case 'Last 7 days':
+        return orders.where((order) => order.createdAt.isAfter(weekAgo)).toList();
+      case 'This month':
+        return orders.where((order) => order.createdAt.isAfter(monthStart)).toList();
+      default:
+        return orders;
+    }
   }
 
   Widget _buildEmptyOrders(BuildContext context) {
@@ -116,18 +221,20 @@ class OrdersScreen extends ConsumerWidget {
   }
 
   Widget _buildOrderCard(BuildContext context, OrderModel order, int index, WidgetRef ref) {
+    final canCancel = order.status.index < OrderStatus.preparing.index;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Card(
-        elevation: 2,
+        elevation: 3,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: InkWell(
           onTap: () {
             _showOrderDetails(context, order);
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -145,7 +252,7 @@ class OrdersScreen extends ConsumerWidget {
                             order.restaurantName,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              fontSize: 18,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -222,7 +329,7 @@ class OrdersScreen extends ConsumerWidget {
                           '₹${order.total.toStringAsFixed(2)}',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 18,
                             color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
@@ -237,18 +344,23 @@ class OrdersScreen extends ConsumerWidget {
                     ),
                     Row(
                       children: [
-                        if (order.status == OrderStatus.pending)
-                          TextButton(
+                        if (canCancel)
+                          OutlinedButton(
                             onPressed: () {
                               _showCancelOrderDialog(context, ref, order);
                             },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                            ),
                             child: const Text('Cancel'),
                           ),
-                        TextButton(
+                        const SizedBox(width: 8),
+                        ElevatedButton(
                           onPressed: () {
                             _showOrderDetails(context, order);
                           },
-                          child: const Text('View Details'),
+                          child: const Text('Details'),
                         ),
                       ],
                     ),
@@ -266,53 +378,60 @@ class OrdersScreen extends ConsumerWidget {
     Color backgroundColor;
     Color textColor;
     String text;
+    IconData? icon;
 
     switch (status) {
       case OrderStatus.pending:
         backgroundColor = Colors.orange.shade100;
-        textColor = Colors.orange.shade700;
+        textColor = Colors.orange.shade800;
         text = 'Pending';
+        icon = Icons.access_time;
         break;
       case OrderStatus.confirmed:
         backgroundColor = Colors.blue.shade100;
-        textColor = Colors.blue.shade700;
+        textColor = Colors.blue.shade800;
         text = 'Confirmed';
+        icon = Icons.check_circle_outline;
         break;
       case OrderStatus.preparing:
         backgroundColor = Colors.purple.shade100;
-        textColor = Colors.purple.shade700;
+        textColor = Colors.purple.shade800;
         text = 'Preparing';
+        icon = Icons.restaurant;
         break;
       case OrderStatus.ready:
         backgroundColor = Colors.teal.shade100;
-        textColor = Colors.teal.shade700;
+        textColor = Colors.teal.shade800;
         text = 'Ready';
+        icon = Icons.emoji_food_beverage;
         break;
       case OrderStatus.outForDelivery:
         backgroundColor = Colors.indigo.shade100;
-        textColor = Colors.indigo.shade700;
-        text = 'Out for Delivery';
+        textColor = Colors.indigo.shade800;
+        text = 'On the way';
+        icon = Icons.delivery_dining;
         break;
       case OrderStatus.delivered:
         backgroundColor = Colors.green.shade100;
-        textColor = Colors.green.shade700;
+        textColor = Colors.green.shade800;
         text = 'Delivered';
+        icon = Icons.check_circle;
         break;
       case OrderStatus.cancelled:
         backgroundColor = Colors.red.shade100;
-        textColor = Colors.red.shade700;
+        textColor = Colors.red.shade800;
         text = 'Cancelled';
+        icon = Icons.cancel;
         break;
       case OrderStatus.readyForDelivery:
         backgroundColor = Colors.cyan.shade100;
-        textColor = Colors.cyan.shade700;
+        textColor = Colors.cyan.shade800;
         text = 'Ready for Delivery';
+        icon = Icons.local_shipping;
         break;
-      default:
-        backgroundColor = Colors.grey.shade100;
-        textColor = Colors.grey.shade700;
-        text = 'Unknown';
-        break;
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
 
     return Container(
@@ -321,13 +440,20 @@ class OrdersScreen extends ConsumerWidget {
         color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -525,6 +651,37 @@ class OrdersScreen extends ConsumerWidget {
                 ),
               ],
               
+              // Show cancellation reason if order was cancelled
+              if (order.status == OrderStatus.cancelled && order.cancellationReason != null) ...[
+                const SizedBox(height: 24),
+                Text(
+                  'Cancellation Reason',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          order.cancellationReason!,
+                          style: TextStyle(color: Colors.red.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
               const SizedBox(height: 24),
               
               // Order Timeline
@@ -657,8 +814,9 @@ class OrdersScreen extends ConsumerWidget {
         return Colors.green;
       case OrderStatus.cancelled:
         return Colors.red;
-      default:
-        return Colors.grey;
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -680,8 +838,9 @@ class OrdersScreen extends ConsumerWidget {
         return 'Delivered';
       case OrderStatus.cancelled:
         return 'Cancelled';
-      default:
-        return 'Unknown status';
+      case OrderStatus.delerved:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -711,11 +870,28 @@ class OrdersScreen extends ConsumerWidget {
   }
 
   void _showCancelOrderDialog(BuildContext context, WidgetRef ref, OrderModel order) {
+    final TextEditingController reasonController = TextEditingController();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel Order'),
-        content: const Text('Are you sure you want to cancel this order?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Are you sure you want to cancel this order?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason for cancellation',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -723,12 +899,22 @@ class OrdersScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () {
+              if (reasonController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please provide a reason for cancellation'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              
               // Cancel order logic using orderManagementProvider
-              ref.read(orderManagementProvider).cancelOrder(order.id);
+              ref.read(orderManagementProvider).cancelOrder(order.id, reasonController.text);
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Order cancelled successfully'),
+                  content: Text('Order cancellation requested'),
                   backgroundColor: Colors.green,
                 ),
               );
