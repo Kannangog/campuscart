@@ -23,6 +23,54 @@ final selectedRestaurantProvider = Provider<RestaurantModel?>((ref) {
   );
 });
 
+// Provider for date filter selection
+enum DateFilter { today, yesterday, last7Days, thisMonth, all }
+
+final dateFilterProvider = StateProvider<DateFilter>((ref) => DateFilter.today);
+
+// Provider to get filtered orders based on date selection
+final filteredOrdersProvider = Provider<List<OrderModel>>((ref) {
+  final restaurant = ref.watch(selectedRestaurantProvider);
+  if (restaurant == null) return [];
+  
+  final ordersAsync = ref.watch(restaurantOrdersProvider(restaurant.id));
+  final dateFilter = ref.watch(dateFilterProvider);
+  
+  return ordersAsync.maybeWhen(
+    data: (orders) {
+      final now = DateTime.now();
+      DateTime startDate;
+      DateTime endDate;
+      
+      switch (dateFilter) {
+        case DateFilter.today:
+          startDate = DateTime(now.year, now.month, now.day);
+          endDate = DateTime(now.year, now.month, now.day + 1);
+          break;
+        case DateFilter.yesterday:
+          startDate = DateTime(now.year, now.month, now.day - 1);
+          endDate = DateTime(now.year, now.month, now.day);
+          break;
+        case DateFilter.last7Days:
+          startDate = now.subtract(const Duration(days: 7));
+          endDate = now.add(const Duration(days: 1));
+          break;
+        case DateFilter.thisMonth:
+          startDate = DateTime(now.year, now.month, 1);
+          endDate = DateTime(now.year, now.month + 1, 1);
+          break;
+        case DateFilter.all:
+          return orders; // Return all orders without filtering
+      }
+      
+      return orders.where((order) {
+        return order.createdAt.isAfter(startDate) && order.createdAt.isBefore(endDate);
+      }).toList();
+    },
+    orElse: () => [],
+  );
+});
+
 class OrdersManagementScreen extends ConsumerStatefulWidget {
   const OrdersManagementScreen({super.key});
 
@@ -55,20 +103,30 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
         title: const Text('Orders Management'),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 1,
-        bottom: restaurant != null ? TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          indicatorColor: Theme.of(context).colorScheme.primary,
-          labelColor: Theme.of(context).colorScheme.primary,
-          unselectedLabelColor: Colors.grey,
-          tabs: const [
-            Tab(text: 'New Orders'),
-            Tab(text: 'Preparing'),
-            Tab(text: 'Ready'),
-            Tab(text: 'Completed'),
-          ],
-        ) : null,
+        bottom: restaurant != null 
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(88.0),
+                child: Column(
+                  children: [
+                    _buildDateFilterRow(),
+                    TabBar(
+                      controller: _tabController,
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      indicatorColor: Theme.of(context).colorScheme.primary,
+                      labelColor: Theme.of(context).colorScheme.primary,
+                      unselectedLabelColor: Colors.grey,
+                      tabs: const [
+                        Tab(text: 'New Orders'),
+                        Tab(text: 'Preparing'),
+                        Tab(text: 'Ready'),
+                        Tab(text: 'Completed'),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+            : null,
       ),
       body: restaurant == null 
           ? _buildNoRestaurant(context) 
@@ -76,55 +134,102 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
     );
   }
 
-  Widget _buildOrdersContent(RestaurantModel restaurant) {
-    final ordersAsync = ref.watch(restaurantOrdersProvider(restaurant.id));
+  Widget _buildDateFilterRow() {
+    final currentFilter = ref.watch(dateFilterProvider);
     
-    return ordersAsync.when(
-      data: (orderList) {
-        return TabBarView(
-          controller: _tabController,
+    return Container(
+      color: Colors.grey.shade100,
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
           children: [
-            OrdersTabView(
-              orders: orderList,
-              statuses: const [OrderStatus.pending, OrderStatus.confirmed],
+            _buildFilterChip(
+              label: 'Today',
+              isSelected: currentFilter == DateFilter.today,
+              onSelected: () => ref.read(dateFilterProvider.notifier).state = DateFilter.today,
             ),
-            OrdersTabView(
-              orders: orderList,
-              statuses: const [OrderStatus.preparing],
+            const SizedBox(width: 8),
+            _buildFilterChip(
+              label: 'Yesterday',
+              isSelected: currentFilter == DateFilter.yesterday,
+              onSelected: () => ref.read(dateFilterProvider.notifier).state = DateFilter.yesterday,
             ),
-            OrdersTabView(
-              orders: orderList,
-              statuses: const [OrderStatus.ready, OrderStatus.outForDelivery],
+            const SizedBox(width: 8),
+            _buildFilterChip(
+              label: 'Last 7 Days',
+              isSelected: currentFilter == DateFilter.last7Days,
+              onSelected: () => ref.read(dateFilterProvider.notifier).state = DateFilter.last7Days,
             ),
-            OrdersTabView(
-              orders: orderList,
-              statuses: const [OrderStatus.delivered, OrderStatus.cancelled],
+            const SizedBox(width: 8),
+            _buildFilterChip(
+              label: 'This Month',
+              isSelected: currentFilter == DateFilter.thisMonth,
+              onSelected: () => ref.read(dateFilterProvider.notifier).state = DateFilter.thisMonth,
             ),
-          ],
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text(
-                'Error loading orders: ${error.toString()}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => ref.refresh(restaurantOrdersProvider(restaurant.id)),
-              child: const Text('Retry'),
+            const SizedBox(width: 8),
+            _buildFilterChip(
+              label: 'All',
+              isSelected: currentFilter == DateFilter.all,
+              onSelected: () => ref.read(dateFilterProvider.notifier).state = DateFilter.all,
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onSelected,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => onSelected(),
+      backgroundColor: Colors.white,
+      selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+      checkmarkColor: Theme.of(context).colorScheme.primary,
+      labelStyle: TextStyle(
+        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade700,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected 
+              ? Theme.of(context).colorScheme.primary 
+              : Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrdersContent(RestaurantModel restaurant) {
+    final filteredOrders = ref.watch(filteredOrdersProvider);
+    
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        OrdersTabView(
+          orders: filteredOrders,
+          statuses: const [OrderStatus.pending, OrderStatus.confirmed],
+        ),
+        OrdersTabView(
+          orders: filteredOrders,
+          statuses: const [OrderStatus.preparing],
+        ),
+        OrdersTabView(
+          orders: filteredOrders,
+          statuses: const [OrderStatus.ready, OrderStatus.outForDelivery],
+        ),
+        OrdersTabView(
+          orders: filteredOrders,
+          statuses: const [OrderStatus.delivered, OrderStatus.cancelled],
+        ),
+      ],
     );
   }
 
@@ -171,6 +276,9 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
               },
               icon: const Icon(Icons.add_business),
               label: const Text('Create Restaurant'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
             ),
           ],
         ),

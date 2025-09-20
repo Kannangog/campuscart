@@ -79,6 +79,61 @@ class _OrderCardState extends ConsumerState<OrderCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Show cancellation reason if order was cancelled
+                  if (widget.order.status == OrderStatus.cancelled && widget.order.cancellationReason != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade100),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.cancel, size: 16, color: Colors.red.shade700),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'ORDER CANCELLED',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red.shade700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                widget.order.cancellationReason!,
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                ),
+                              ),
+                              if (widget.order.cancelledBy != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Cancelled by: ${widget.order.cancelledBy!}',
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+
                   // Customer Info
                   Text(
                     'CUSTOMER INFORMATION',
@@ -256,6 +311,7 @@ class _OrderCardState extends ConsumerState<OrderCard> {
                       decoration: BoxDecoration(
                         color: Colors.amber.shade50,
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade100),
                       ),
                       child: Text(
                         widget.order.specialInstructions!,
@@ -355,7 +411,7 @@ class _OrderCardState extends ConsumerState<OrderCard> {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.cancel_outlined, size: 18),
-                    onPressed: () => _updateOrderStatus(order.id, OrderStatus.cancelled),
+                    onPressed: () => _showRejectOrderDialog(order),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
@@ -429,6 +485,67 @@ class _OrderCardState extends ConsumerState<OrderCard> {
     );
   }
 
+  void _showRejectOrderDialog(OrderModel order) {
+    final TextEditingController reasonController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Order'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please provide a reason for rejecting this order:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason for rejection',
+                border: OutlineInputBorder(),
+                hintText: 'E.g., Out of stock, Restaurant closed, etc.',
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please provide a reason for rejection'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              
+              // Reject order with reason
+              _updateOrderStatusWithReason(
+                order.id, 
+                OrderStatus.cancelled, 
+                reasonController.text,
+                cancelledBy: 'Restaurant'
+              );
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Reject Order'),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _shouldShowActions(OrderStatus status) {
     return status == OrderStatus.pending ||
         status == OrderStatus.confirmed ||
@@ -453,6 +570,55 @@ class _OrderCardState extends ConsumerState<OrderCard> {
           SnackBar(
             content: Text('Order status updated to ${_getStatusText(newStatus)}!'),
             backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating order: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _updateOrderStatusWithReason(
+    String orderId, 
+    OrderStatus newStatus, 
+    String reason,
+    {String? cancelledBy}
+  ) async {
+    setState(() {
+      _isUpdating = true;
+    });
+    
+    try {
+      await ref.read(orderManagementProvider).updateOrderStatusWithReason(
+        orderId, 
+        newStatus, 
+        reason,
+        cancelledBy: cancelledBy
+      );
+      
+      // Refresh the orders list to get the updated data
+      widget.onStatusUpdated();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Order ${_getStatusText(newStatus).toLowerCase()}!'),
+            backgroundColor: newStatus == OrderStatus.cancelled ? Colors.orange : Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
         );

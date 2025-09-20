@@ -9,7 +9,6 @@ enum OrderStatus {
   outForDelivery,
   delivered,
   cancelled, delerved,
-  // Removed the duplicate/delivered typo 'delerved'
 }
 
 class OrderItem {
@@ -89,6 +88,7 @@ class OrderModel {
   final String? driverId;
   final String? driverName;
   final String? cancellationReason;
+  final String? cancelledBy; // Added to track who cancelled the order
 
   OrderModel({
     required this.id,
@@ -121,6 +121,7 @@ class OrderModel {
     this.driverId,
     this.driverName,
     this.cancellationReason,
+    this.cancelledBy, // Added to constructor
   });
 
   factory OrderModel.fromFirestore(DocumentSnapshot doc) {
@@ -131,40 +132,24 @@ class OrderModel {
     OrderStatus status;
     
     try {
-      // Remove 'OrderStatus.' prefix if present
-      final cleanStatusString = statusString.replaceFirst('OrderStatus.', '');
-      status = OrderStatus.values.firstWhere(
-        (e) => e.toString() == 'OrderStatus.$cleanStatusString',
-        orElse: () => OrderStatus.pending,
-      );
-    } catch (e) {
-      // Fallback for legacy status values
-      switch (statusString.toLowerCase()) {
-        case 'delivered':
-        case 'delerved': // Handle typo in legacy data - map to delivered
-          status = OrderStatus.delivered;
-          break;
-        case 'readyfordelivery':
-          status = OrderStatus.readyForDelivery;
-          break;
-        case 'outfordelivery':
-          status = OrderStatus.outForDelivery;
-          break;
-        case 'cancelled':
-          status = OrderStatus.cancelled;
-          break;
-        case 'confirmed':
-          status = OrderStatus.confirmed;
-          break;
-        case 'preparing':
-          status = OrderStatus.preparing;
-          break;
-        case 'ready':
-          status = OrderStatus.ready;
-          break;
-        default:
-          status = OrderStatus.pending;
+      // Handle both enum name string and legacy string values
+      if (statusString.startsWith('OrderStatus.')) {
+        // Remove 'OrderStatus.' prefix if present
+        final cleanStatusString = statusString.replaceFirst('OrderStatus.', '');
+        status = OrderStatus.values.firstWhere(
+          (e) => e.toString() == 'OrderStatus.$cleanStatusString',
+          orElse: () => OrderStatus.pending,
+        );
+      } else {
+        // Handle direct enum name values
+        status = OrderStatus.values.firstWhere(
+          (e) => e.name == statusString,
+          orElse: () => _parseLegacyStatus(statusString),
+        );
       }
+    } catch (e) {
+      // Fallback for any parsing errors
+      status = _parseLegacyStatus(statusString);
     }
 
     // Parse order items
@@ -194,7 +179,7 @@ class OrderModel {
       items: items,
       subtotal: (data['subtotal'] ?? 0.0).toDouble(),
       deliveryFee: (data['deliveryFee'] ?? 0.0).toDouble(),
-      convenienceFee: (data['convenienceFee'] ?? 5.0).toDouble(), // Default to 5 if not present
+      convenienceFee: (data['convenienceFee'] ?? 5.0).toDouble(),
       tax: (data['tax'] ?? 0.0).toDouble(),
       discount: (data['discount'] ?? 0.0).toDouble(),
       total: (data['total'] ?? 0.0).toDouble(),
@@ -213,7 +198,34 @@ class OrderModel {
       driverId: data['driverId']?.toString(),
       driverName: data['driverName']?.toString(),
       cancellationReason: data['cancellationReason']?.toString(),
+      cancelledBy: data['cancelledBy']?.toString(), // Added
     );
+  }
+
+  // Helper method to parse legacy status strings
+  static OrderStatus _parseLegacyStatus(String statusString) {
+    switch (statusString.toLowerCase()) {
+      case 'delivered':
+      case 'delerved': // Handle typo in legacy data - map to delivered
+        return OrderStatus.delivered;
+      case 'readyfordelivery':
+      case 'ready_for_delivery':
+        return OrderStatus.readyForDelivery;
+      case 'outfordelivery':
+      case 'out_for_delivery':
+        return OrderStatus.outForDelivery;
+      case 'cancelled':
+      case 'canceled':
+        return OrderStatus.cancelled;
+      case 'confirmed':
+        return OrderStatus.confirmed;
+      case 'preparing':
+        return OrderStatus.preparing;
+      case 'ready':
+        return OrderStatus.ready;
+      default:
+        return OrderStatus.pending;
+    }
   }
 
   Map<String, dynamic> toFirestore() {
@@ -232,7 +244,7 @@ class OrderModel {
       'tax': tax,
       'discount': discount,
       'total': total,
-      'status': status.name, // Use enum name instead of toString
+      'status': status.name,
       'deliveryAddress': deliveryAddress,
       'deliveryLatitude': deliveryLatitude,
       'deliveryLongitude': deliveryLongitude,
@@ -251,6 +263,7 @@ class OrderModel {
       'driverId': driverId,
       'driverName': driverName,
       'cancellationReason': cancellationReason,
+      'cancelledBy': cancelledBy, // Added
     };
   }
 
@@ -285,6 +298,7 @@ class OrderModel {
     String? driverId,
     String? driverName,
     String? cancellationReason,
+    String? cancelledBy, // Added
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -317,6 +331,7 @@ class OrderModel {
       driverId: driverId ?? this.driverId,
       driverName: driverName ?? this.driverName,
       cancellationReason: cancellationReason ?? this.cancellationReason,
+      cancelledBy: cancelledBy ?? this.cancelledBy, // Added
     );
   }
 
@@ -434,5 +449,29 @@ class OrderModel {
     const totalSteps = 6; // pending to delivered
     final currentStep = statusPriority.clamp(1, totalSteps);
     return currentStep / totalSteps;
+  }
+
+  // Check if order was cancelled by customer
+  bool get isCancelledByCustomer => cancelledBy?.toLowerCase() == 'customer';
+  
+  // Check if order was cancelled by restaurant
+  bool get isCancelledByRestaurant => cancelledBy?.toLowerCase() == 'restaurant';
+  
+  // Check if order was cancelled by admin/support
+  bool get isCancelledByAdmin => cancelledBy?.toLowerCase() == 'admin';
+  
+  // Get cancellation source text for display
+  String get cancellationSource {
+    if (cancelledBy == null) return 'Unknown';
+    switch (cancelledBy!.toLowerCase()) {
+      case 'customer':
+        return 'Customer';
+      case 'restaurant':
+        return 'Restaurant';
+      case 'admin':
+        return 'Support Team';
+      default:
+        return cancelledBy!;
+    }
   }
 }

@@ -9,8 +9,9 @@ import 'orders_management/orders_management_screen.dart';
 import 'orders_location/oders_location_screen.dart';
 import 'restaurant_profile.dart';
 
-// Provider to manage notification counts across the app
-final notificationCountProvider = StateProvider<int>((ref) => 3);
+// Separate providers for different types of notifications
+final ordersNotificationCountProvider = StateProvider<int>((ref) => 3);
+final locationNotificationCountProvider = StateProvider<int>((ref) => 2);
 
 class RestaurantDashboard extends ConsumerStatefulWidget {
   const RestaurantDashboard({super.key});
@@ -56,15 +57,24 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
       _animationController.reset();
       _currentIndex = index;
       _animationController.forward();
+      
+      // Clear notifications for the tab when it's selected
+      if (index == 2) { // Orders tab
+        ref.read(ordersNotificationCountProvider.notifier).state = 0;
+      } else if (index == 3) { // Location tab
+        ref.read(locationNotificationCountProvider.notifier).state = 0;
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final notificationCount = ref.watch(notificationCountProvider);
+    final ordersNotificationCount = ref.watch(ordersNotificationCountProvider);
+    final locationNotificationCount = ref.watch(locationNotificationCountProvider);
+    final totalNotificationCount = ordersNotificationCount + locationNotificationCount;
     
     return Scaffold(
-      appBar: _currentIndex == 4 ? null : _buildAppBar(notificationCount),
+      appBar: _currentIndex == 4 ? null : _buildAppBar(totalNotificationCount),
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: IndexedStack(
@@ -72,11 +82,11 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
           children: _screens,
         ),
       ),
-      bottomNavigationBar: _buildAnimatedNavBar(notificationCount),
+      bottomNavigationBar: _buildAnimatedNavBar(ordersNotificationCount, locationNotificationCount),
     );
   }
 
-  Widget _buildAnimatedNavBar(int notificationCount) {
+  Widget _buildAnimatedNavBar(int ordersNotificationCount, int locationNotificationCount) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.only(
@@ -129,7 +139,7 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
                 currentIndex: _currentIndex,
                 icon: Icons.receipt_long_outlined,
                 activeIcon: Icons.receipt_long,
-                badgeCount: notificationCount,
+                badgeCount: ordersNotificationCount,
               ),
               label: 'Orders',
             ),
@@ -139,7 +149,7 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
                 currentIndex: _currentIndex,
                 icon: Icons.location_on_outlined,
                 activeIcon: Icons.location_on,
-                badgeCount: notificationCount,
+                badgeCount: locationNotificationCount,
               ),
               label: 'Location',
             ),
@@ -219,8 +229,8 @@ class _RestaurantDashboardState extends ConsumerState<RestaurantDashboard> with 
               context,
               MaterialPageRoute(builder: (context) => const NotificationsScreen()),
             ).then((_) {
-              // Reset notification count when returning from notifications
-              ref.read(notificationCountProvider.notifier).state = 0;
+              // Don't reset all notifications, let each tab handle its own notifications
+              // The user might want to see notifications again after viewing them
             });
           },
         ),
