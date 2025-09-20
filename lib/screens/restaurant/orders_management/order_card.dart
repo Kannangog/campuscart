@@ -1,6 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
-import 'package:campuscart/screens/restaurant/orders_management/order_status_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -13,7 +10,8 @@ class OrderCard extends ConsumerStatefulWidget {
   final int index;
   final VoidCallback onStatusUpdated;
 
-  const OrderCard({super.key, 
+  const OrderCard({
+    super.key,
     required this.order,
     required this.index,
     required this.onStatusUpdated,
@@ -41,12 +39,12 @@ class _OrderCardState extends ConsumerState<OrderCard> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: OrderStatusUtils.getStatusColor(widget.order.status).withOpacity(0.1),
+              color: _getStatusColor(widget.order.status).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              OrderStatusUtils.getStatusIcon(widget.order.status),
-              color: OrderStatusUtils.getStatusColor(widget.order.status),
+              _getStatusIcon(widget.order.status),
+              color: _getStatusColor(widget.order.status),
               size: 20,
             ),
           ),
@@ -326,14 +324,14 @@ class _OrderCardState extends ConsumerState<OrderCard> {
   Widget _buildStatusChip(OrderStatus status) {
     return Chip(
       label: Text(
-        OrderStatusUtils.getStatusText(status),
+        _getStatusText(status),
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
-          color: OrderStatusUtils.getStatusColor(status),
+          color: _getStatusColor(status),
         ),
       ),
-      backgroundColor: OrderStatusUtils.getStatusColor(status).withOpacity(0.1),
+      backgroundColor: _getStatusColor(status).withOpacity(0.1),
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
@@ -445,12 +443,13 @@ class _OrderCardState extends ConsumerState<OrderCard> {
     try {
       await ref.read(orderManagementProvider).updateOrderStatus(orderId, newStatus);
       
+      // Refresh the orders list to get the updated data
       widget.onStatusUpdated();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Order status updated to ${OrderStatusUtils.getStatusText(newStatus)}!'),
+            content: Text('Order status updated to ${_getStatusText(newStatus)}!'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -472,6 +471,75 @@ class _OrderCardState extends ConsumerState<OrderCard> {
           _isUpdating = false;
         });
       }
+    }
+  }
+
+  Color _getStatusColor(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return Colors.orange;
+      case OrderStatus.confirmed:
+        return Colors.blue;
+      case OrderStatus.preparing:
+        return Colors.purple;
+      case OrderStatus.ready:
+        return Colors.teal;
+      case OrderStatus.outForDelivery:
+        return Colors.indigo;
+      case OrderStatus.delivered:
+        return Colors.green;
+      case OrderStatus.cancelled:
+        return Colors.red;
+      case OrderStatus.delerved:
+        return Colors.green.shade300;
+      case OrderStatus.readyForDelivery:
+        return Colors.blue.shade300;
+    }
+  }
+
+  IconData _getStatusIcon(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return Icons.access_time;
+      case OrderStatus.confirmed:
+        return Icons.check_circle_outline;
+      case OrderStatus.preparing:
+        return Icons.restaurant_menu;
+      case OrderStatus.ready:
+        return Icons.emoji_food_beverage_outlined;
+      case OrderStatus.outForDelivery:
+        return Icons.delivery_dining;
+      case OrderStatus.delivered:
+        return Icons.check_circle;
+      case OrderStatus.cancelled:
+        return Icons.cancel;
+      case OrderStatus.delerved:
+        return Icons.check_circle_outline;
+      case OrderStatus.readyForDelivery:
+        return Icons.directions_bike;
+    }
+  }
+
+  String _getStatusText(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return 'Pending';
+      case OrderStatus.confirmed:
+        return 'Confirmed';
+      case OrderStatus.preparing:
+        return 'Preparing';
+      case OrderStatus.ready:
+        return 'Ready';
+      case OrderStatus.outForDelivery:
+        return 'Out for Delivery';
+      case OrderStatus.delivered:
+        return 'Delivered';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
+      case OrderStatus.delerved:
+        return 'Delivered';
+      case OrderStatus.readyForDelivery:
+        return 'Ready for Delivery';
     }
   }
 }

@@ -1,14 +1,27 @@
 // ignore_for_file: deprecated_member_use, unused_result
 
-import 'package:campuscart/models/order_model.dart';
+import 'package:campuscart/providers/auth_provider.dart';
 import 'package:campuscart/providers/order_provider.dart';
-import 'package:campuscart/screens/restaurant/orders_management/orders_tab_view.dart';
+import 'package:campuscart/providers/restaurant_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:campuscart/models/restaurant_model.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../providers/restaurant_provider.dart';
+import 'package:campuscart/models/order_model.dart';
+import 'orders_tab_view.dart';
+
+// Create a provider for the selected restaurant to avoid repeated computation
+final selectedRestaurantProvider = Provider<RestaurantModel?>((ref) {
+  final authState = ref.watch(authStateProvider);
+  final user = authState.value;
+  if (user == null) return null;
+  
+  final restaurants = ref.watch(restaurantsByOwnerProvider(user.uid));
+  return restaurants.maybeWhen(
+    data: (restaurantList) => restaurantList.isNotEmpty ? restaurantList.first : null,
+    orElse: () => null,
+  );
+});
 
 class OrdersManagementScreen extends ConsumerStatefulWidget {
   const OrdersManagementScreen({super.key});
