@@ -9,6 +9,7 @@ enum OrderStatus {
   outForDelivery,
   delivered,
   cancelled, delerved,
+  // Removed the duplicate 'delerved' status
 }
 
 class OrderItem {
@@ -88,7 +89,8 @@ class OrderModel {
   final String? driverId;
   final String? driverName;
   final String? cancellationReason;
-  final String? cancelledBy; // Added to track who cancelled the order
+  final String? cancelledBy;
+  final String? foodImageUrl; // Added foodImageUrl field
 
   OrderModel({
     required this.id,
@@ -121,7 +123,8 @@ class OrderModel {
     this.driverId,
     this.driverName,
     this.cancellationReason,
-    this.cancelledBy, // Added to constructor
+    this.cancelledBy,
+    this.foodImageUrl, // Added to constructor
   });
 
   factory OrderModel.fromFirestore(DocumentSnapshot doc) {
@@ -198,7 +201,8 @@ class OrderModel {
       driverId: data['driverId']?.toString(),
       driverName: data['driverName']?.toString(),
       cancellationReason: data['cancellationReason']?.toString(),
-      cancelledBy: data['cancelledBy']?.toString(), // Added
+      cancelledBy: data['cancelledBy']?.toString(),
+      foodImageUrl: data['foodImageUrl']?.toString(), // Added
     );
   }
 
@@ -263,7 +267,8 @@ class OrderModel {
       'driverId': driverId,
       'driverName': driverName,
       'cancellationReason': cancellationReason,
-      'cancelledBy': cancelledBy, // Added
+      'cancelledBy': cancelledBy,
+      'foodImageUrl': foodImageUrl, // Added
     };
   }
 
@@ -298,7 +303,8 @@ class OrderModel {
     String? driverId,
     String? driverName,
     String? cancellationReason,
-    String? cancelledBy, // Added
+    String? cancelledBy,
+    String? foodImageUrl, // Added
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -331,7 +337,8 @@ class OrderModel {
       driverId: driverId ?? this.driverId,
       driverName: driverName ?? this.driverName,
       cancellationReason: cancellationReason ?? this.cancellationReason,
-      cancelledBy: cancelledBy ?? this.cancelledBy, // Added
+      cancelledBy: cancelledBy ?? this.cancelledBy,
+      foodImageUrl: foodImageUrl ?? this.foodImageUrl, // Added
     );
   }
 
