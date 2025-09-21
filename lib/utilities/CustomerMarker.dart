@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, file_names
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';

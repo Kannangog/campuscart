@@ -1,6 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../models/menu_item_model.dart';
+
+// Cart persistence functions
+Future<void> saveCartToStorage(CartState cartState) async {
+  final prefs = await SharedPreferences.getInstance();
+  
+  final cartData = {
+    'items': cartState.items.map((item) => {
+      'menuItem': {
+        'id': item.menuItem.id,
+        'name': item.menuItem.name,
+        'price': item.menuItem.price,
+        'specialOfferPrice': item.menuItem.specialOfferPrice,
+        'imageUrl': item.menuItem.imageUrl,
+        'restaurantId': item.menuItem.restaurantId,
+        'restaurantName': item.menuItem.restaurantName,
+        'restaurantImage': item.menuItem.restaurantImage,
+      },
+      'quantity': item.quantity,
+      'specialInstructions': item.specialInstructions,
+    }).toList(),
+    'restaurantId': cartState.restaurantId,
+    'restaurantName': cartState.restaurantName,
+    'restaurantImage': cartState.restaurantImage,
+  };
+  
+  await prefs.setString('cart', jsonEncode(cartData));
+}
+
+Future<CartState> loadCartFromStorage() async {
+  final prefs = await SharedPreferences.getInstance();
+  final cartJson = prefs.getString('cart');
+  
+  if (cartJson == null) return CartState();
+  
+  try {
+    final cartData = jsonDecode(cartJson);
+    final items = (cartData['items'] as List).map((itemData) {
+      return CartItem(
+        menuItem: MenuItemModel(
+          id: itemData['menuItem']['id'],
+          name: itemData['menuItem']['name'],
+          price: itemData['menuItem']['price'].toDouble(),
+          specialOfferPrice: itemData['menuItem']['specialOfferPrice']?.toDouble(),
+          imageUrl: itemData['menuItem']['imageUrl'],
+          restaurantId: itemData['menuItem']['restaurantId'],
+          restaurantName: itemData['menuItem']['restaurantName'],
+          restaurantImage: itemData['menuItem']['restaurantImage'],
+          description: '',
+          category: '',
+          createdAt: itemData['menuItem']['createdAt'] != null
+              ? DateTime.parse(itemData['menuItem']['createdAt'])
+              : DateTime.now(),
+          updatedAt: itemData['menuItem']['updatedAt'] != null
+              ? DateTime.parse(itemData['menuItem']['updatedAt'])
+              : DateTime.now(),
+        ),
+        quantity: itemData['quantity'],
+        specialInstructions: itemData['specialInstructions'],
+      );
+    }).toList();
+    
+    return CartState(
+      items: items,
+      restaurantId: cartData['restaurantId'],
+      restaurantName: cartData['restaurantName'],
+      restaurantImage: cartData['restaurantImage'],
+    );
+  } catch (e) {
+    print('Error loading cart from storage: $e');
+    return CartState();
+  }
+}
 
 class CartItem {
   final MenuItemModel menuItem;
@@ -55,8 +129,8 @@ class CartState {
   int get totalItems => items.fold(0, (sum, item) => sum + item.quantity);
   bool get isEmpty => items.isEmpty;
   bool get hasItems => items.isNotEmpty;
-  int get length => items.length; // Fixed: Return actual length
-  bool get isNotEmpty => items.isNotEmpty; // Fixed: Return actual boolean value
+  int get length => items.length;
+  bool get isNotEmpty => items.isNotEmpty;
 
   CartState copyWith({
     List<CartItem>? items,
@@ -78,7 +152,19 @@ final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {
 });
 
 class CartNotifier extends StateNotifier<CartState> {
-  CartNotifier() : super(CartState());
+  CartNotifier() : super(CartState()) {
+    // Load cart from storage when the notifier is created
+    _loadCartFromStorage();
+  }
+
+  Future<void> _loadCartFromStorage() async {
+    final cartState = await loadCartFromStorage();
+    state = cartState;
+  }
+
+  Future<void> _saveCartToStorage() async {
+    await saveCartToStorage(state);
+  }
 
   void addItem(MenuItemModel menuItem, String restaurantName, String s, {String? specialInstructions}) {
     // If cart has items from different restaurant, clear it first
@@ -109,9 +195,11 @@ class CartNotifier extends StateNotifier<CartState> {
     state = state.copyWith(
       items: updatedItems,
       restaurantId: menuItem.restaurantId,
-      restaurantName: menuItem.restaurantName, // Added restaurant name
-      restaurantImage: menuItem.restaurantImage, // Added restaurant image
+      restaurantName: menuItem.restaurantName,
+      restaurantImage: menuItem.restaurantImage,
     );
+    
+    _saveCartToStorage();
   }
 
   void removeItem(String menuItemId, {String? specialInstructions}) {
@@ -124,6 +212,8 @@ class CartNotifier extends StateNotifier<CartState> {
     } else {
       state = state.copyWith(items: updatedItems);
     }
+    
+    _saveCartToStorage();
   }
 
   void updateQuantity(String menuItemId, int quantity, {String? specialInstructions}) {
@@ -140,6 +230,7 @@ class CartNotifier extends StateNotifier<CartState> {
     }).toList();
 
     state = state.copyWith(items: updatedItems);
+    _saveCartToStorage();
   }
 
   void updateSpecialInstructions(String menuItemId, String specialInstructions) {
@@ -151,6 +242,7 @@ class CartNotifier extends StateNotifier<CartState> {
     }).toList();
 
     state = state.copyWith(items: updatedItems);
+    _saveCartToStorage();
   }
 
   void incrementQuantity(String menuItemId, {String? specialInstructions}) {
@@ -162,6 +254,7 @@ class CartNotifier extends StateNotifier<CartState> {
     }).toList();
 
     state = state.copyWith(items: updatedItems);
+    _saveCartToStorage();
   }
 
   void decrementQuantity(String menuItemId, {String? specialInstructions}) {
@@ -169,7 +262,7 @@ class CartNotifier extends StateNotifier<CartState> {
       if (item.menuItem.id == menuItemId && item.specialInstructions == specialInstructions) {
         final newQuantity = item.quantity - 1;
         if (newQuantity <= 0) {
-          return null; // Remove item if quantity becomes 0
+          return null;
         }
         return item.copyWith(quantity: newQuantity);
       }
@@ -181,10 +274,18 @@ class CartNotifier extends StateNotifier<CartState> {
     } else {
       state = state.copyWith(items: updatedItems);
     }
+    
+    _saveCartToStorage();
   }
 
   void clearCart() {
     state = CartState();
+    _saveCartToStorage();
+  }
+
+  void loadCart(List<CartItem> items) {
+    state = state.copyWith(items: items);
+    _saveCartToStorage();
   }
 
   double calculateDeliveryFee() {
@@ -225,6 +326,7 @@ class CartNotifier extends StateNotifier<CartState> {
 
   void mergeCart(CartState newCart) {
     state = newCart;
+    _saveCartToStorage();
   }
 
   CartItem? getCartItem(String menuItemId, {String? specialInstructions}) {
