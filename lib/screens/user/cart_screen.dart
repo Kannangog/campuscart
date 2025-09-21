@@ -18,7 +18,7 @@ class CartScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Cart'),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color.fromARGB(0, 58, 168, 58),
         elevation: 0,
         actions: [
           if (cartState.items.isNotEmpty)

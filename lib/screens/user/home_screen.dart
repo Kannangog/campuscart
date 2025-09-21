@@ -147,7 +147,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _addToCart(MenuItemModel item, int quantity, BuildContext context) {
-    ref.read(cartProvider.notifier).addItem(item, quantity as String, context as String);
+    ref.read(cartProvider.notifier).addItem(item, quantity.toString(), context.toString());
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${item.name} added to cart'),
@@ -623,7 +623,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       final restaurant = restaurants[index];
                       return _buildRestaurantCard(context, restaurant, index);
                     },
-                    childCount: restaurants.length,
+                    childCount: restaurants.length > 3 ? 3 : restaurants.length, // Limit to 3 items
                   ),
                 );
               },
@@ -667,6 +667,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ],
                   ),
                 ),
+              ),
+            ),
+
+            // View All Restaurants Button (if there are more than 3)
+            SliverToBoxAdapter(
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final restaurants = ref.watch(restaurantsProvider);
+                  return restaurants.maybeWhen(
+                    data: (data) {
+                      if (data.length > 3) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/restaurants');
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: Theme.of(context).colorScheme.primary,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                              ),
+                              minimumSize: const Size(double.infinity, 48),
+                            ),
+                            child: const Text('View All Restaurants'),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                    orElse: () => const SizedBox.shrink(),
+                  );
+                },
               ),
             ),
 
@@ -735,7 +771,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: items.length,
+                      itemCount: items.length > 5 ? 5 : items.length, // Limit to 5 items
                       itemBuilder: (context, index) {
                         final item = items[index];
                         return _buildFoodItemCard(context, item, index);
@@ -858,7 +894,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RestaurantDetailScreen(restaurant: restaurant, restaurantId: '',),
+            builder: (context) => RestaurantDetailScreen(restaurant: restaurant, restaurantId: restaurant.id),
           ),
         );
       },
@@ -1248,12 +1284,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _isRestaurantOpen(String? openingTime, String? closingTime) {
     if (openingTime == null || closingTime == null) return true;
     
-    final now = TimeOfDay.now();
-    final open = _parseTime(openingTime);
-    final close = _parseTime(closingTime);
-    
-    return (now.hour > open.hour || (now.hour == open.hour && now.minute >= open.minute)) &&
-           (now.hour < close.hour || (now.hour == close.hour && now.minute < close.minute));
+    try {
+      final now = TimeOfDay.now();
+      final open = _parseTime(openingTime);
+      final close = _parseTime(closingTime);
+      
+      return (now.hour > open.hour || (now.hour == open.hour && now.minute >= open.minute)) &&
+            (now.hour < close.hour || (now.hour == close.hour && now.minute < close.minute));
+    } catch (e) {
+      return true;
+    }
   }
 
   TimeOfDay _parseTime(String timeString) {
