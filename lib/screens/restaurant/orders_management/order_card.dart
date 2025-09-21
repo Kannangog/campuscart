@@ -426,7 +426,7 @@ class _OrderCardState extends ConsumerState<OrderCard> {
                 Expanded(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.check_circle_outline, size: 18),
-                    onPressed: () => _updateOrderStatus(order.id, OrderStatus.confirmed),
+                    onPressed: () => _showAcceptOrderConfirmation(order),
                     style: ElevatedButton.styleFrom(
                       padding: isSmallScreen 
                           ? const EdgeInsets.symmetric(horizontal: 8, vertical: 8)
@@ -463,7 +463,7 @@ class _OrderCardState extends ConsumerState<OrderCard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.delivery_dining_outlined, size: 18),
-                onPressed: () => _updateOrderStatus(order.id, OrderStatus.outForDelivery),
+                onPressed: () => _showOutForDeliveryConfirmation(order),
                 label: const Text('Out for Delivery'),
               ),
             );
@@ -473,7 +473,7 @@ class _OrderCardState extends ConsumerState<OrderCard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.check_circle_outline, size: 18),
-                onPressed: () => _updateOrderStatus(order.id, OrderStatus.delivered),
+                onPressed: () => _showDeliveredConfirmation(order),
                 label: const Text('Mark as Delivered'),
               ),
             );
@@ -482,6 +482,75 @@ class _OrderCardState extends ConsumerState<OrderCard> {
             return const SizedBox();
         }
       },
+    );
+  }
+
+  void _showAcceptOrderConfirmation(OrderModel order) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Accept Order'),
+        content: const Text('Are you sure you want to accept this order?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _updateOrderStatus(order.id, OrderStatus.confirmed);
+            },
+            child: const Text('Accept Order'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOutForDeliveryConfirmation(OrderModel order) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Out for Delivery'),
+        content: const Text('Mark this order as out for delivery?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _updateOrderStatus(order.id, OrderStatus.outForDelivery);
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeliveredConfirmation(OrderModel order) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark as Delivered'),
+        content: const Text('Confirm that this order has been delivered?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _updateOrderStatus(order.id, OrderStatus.delivered);
+            },
+            child: const Text('Confirm Delivery'),
+          ),
+        ],
+      ),
     );
   }
 
