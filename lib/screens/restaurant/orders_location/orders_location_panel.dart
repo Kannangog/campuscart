@@ -329,19 +329,28 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
                 const SizedBox(height: 24),
                 
                 // Order Actions
+                if (order.userPhone.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: FilledButton.tonal(
+                      onPressed: () => _callCustomer(order.userPhone),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.phone, size: 18),
+                          SizedBox(width: 8),
+                          Text('Call Customer'),
+                        ],
+                      ),
+                    ),
+                  ),
+                
                 if (order.status == OrderStatus.preparing || order.status == OrderStatus.ready)
                   Row(
                     children: [
                       Expanded(
                         child: FilledButton.tonal(
-                          onPressed: () {
-                            final orderManagementService = widget.ref.read(orderManagementProvider);
-                            if (order.status == OrderStatus.preparing) {
-                              orderManagementService.updateOrderStatus(order.id, OrderStatus.ready);
-                            } else {
-                              orderManagementService.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-                            }
-                          },
+                          onPressed: () => _confirmMarkAsReady(context, order),
                           child: Text(
                             order.status == OrderStatus.preparing 
                               ? 'Mark as Ready' 
@@ -349,37 +358,17 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      if (order.status == OrderStatus.ready || order.status == OrderStatus.outForDelivery)
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => _openGoogleMapsForNavigation(order),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.navigation, size: 18),
-                                SizedBox(width: 4),
-                                Text('Navigate'),
-                              ],
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 
                 if (order.status == OrderStatus.outForDelivery)
-                  Column(
-                    children: [
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () => _confirmDelivery(context, order),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 48),
-                          backgroundColor: lightGreenPrimary,
-                        ),
-                        child: const Text('Mark as Delivered'),
-                      ),
-                    ],
+                  FilledButton(
+                    onPressed: () => _confirmDelivery(context, order),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      backgroundColor: lightGreenPrimary,
+                    ),
+                    child: const Text('Mark as Delivered'),
                   ),
                 
                 const SizedBox(height: 16),
@@ -672,49 +661,6 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
     }
   }
 
-  Future<void> _openGoogleMapsForNavigation(OrderModel order) async {
-    if (order.deliveryAddress.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No delivery address specified for this order'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    // Encode the address for URL
-    final encodedAddress = Uri.encodeComponent(order.deliveryAddress);
-    
-    // Create Google Maps URL for navigation
-    final String googleMapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=$encodedAddress&travelmode=driving';
-    
-    // Create alternative URL in case Google Maps is not available
-    final String fallbackUrl = 'https://maps.apple.com/?daddr=$encodedAddress&dirflg=d';
-    
-    try {
-      if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
-        await launchUrl(Uri.parse(googleMapsUrl));
-      } else if (await canLaunchUrl(Uri.parse(fallbackUrl))) {
-        await launchUrl(Uri.parse(fallbackUrl));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not launch navigation app. Address: ${order.deliveryAddress}'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error opening navigation: $e'),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
   void _confirmDelivery(BuildContext context, OrderModel order) {
     showDialog(
       context: context,
@@ -766,5 +712,73 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
         );
       },
     );
+  }
+
+  void _confirmMarkAsReady(BuildContext context, OrderModel order) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(order.status == OrderStatus.preparing 
+            ? 'Mark as Ready?' 
+            : 'Start Delivery?'),
+          content: Text(order.status == OrderStatus.preparing 
+            ? 'Are you sure you want to mark order #${order.id.substring(0, 8)} as ready for delivery?'
+            : 'Are you sure you want to start delivery for order #${order.id.substring(0, 8)}?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final orderManagementService = widget.ref.read(orderManagementProvider);
+                if (order.status == OrderStatus.preparing) {
+                  orderManagementService.updateOrderStatus(order.id, OrderStatus.ready);
+                } else {
+                  orderManagementService.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                }
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(order.status == OrderStatus.preparing
+                      ? 'Order #${order.id.substring(0, 8)} marked as ready'
+                      : 'Delivery started for order #${order.id.substring(0, 8)}'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: Text(order.status == OrderStatus.preparing 
+                ? 'Mark as Ready' 
+                : 'Start Delivery'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _callCustomer(String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not launch phone app'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error making call: $e'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 }

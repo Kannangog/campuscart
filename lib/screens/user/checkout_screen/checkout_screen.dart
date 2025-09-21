@@ -5,6 +5,7 @@ import 'package:campuscart/providers/cart_provider.dart';
 import 'package:campuscart/providers/order_provider.dart';
 import 'package:campuscart/screens/user/checkout_screen/location_service.dart';
 import 'package:campuscart/screens/user/checkout_screen/order_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -110,7 +111,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  // Save phone number to profile and shared preferences
+  // Save phone number to profile, auth system, and shared preferences
   Future<void> _savePhoneNumber() async {
     if (_phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,8 +123,26 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
+    setState(() => _isPlacingOrder = true);
+
     try {
-      // Save to shared preferences
+      final authState = ref.read(authStateProvider);
+      final user = authState.value;
+      
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // 1. Save to authentication system (Firestore)
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'phoneNumber': _phoneController.text,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Save to shared preferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_phone_number', _phoneController.text);
       
@@ -134,7 +153,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Phone number saved'),
+          content: Text('Phone number saved successfully'),
           backgroundColor: Colors.green,
         ),
       );
@@ -145,6 +164,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      setState(() => _isPlacingOrder = false);
     }
   }
 
@@ -277,6 +298,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         deliveryLocation: _selectedLocation!,
         paymentMethod: _selectedPaymentMethod,
         orderService: orderService,
+        phoneNumber: _phoneController.text, // Pass phone number to order
       );
 
       // Clear cart
@@ -491,6 +513,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       elevation: 2,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.green.shade100, width: 1),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -519,6 +542,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                   child: ChoiceChip(
                                     label: const Text('Current Location'),
                                     selected: _useCurrentLocation,
+                                    selectedColor: Colors.lightGreen,
+                                    labelStyle: TextStyle(
+                                      color: _useCurrentLocation ? Colors.white : Colors.black,
+                                    ),
                                     onSelected: (selected) {
                                       if (selected) {
                                         setState(() {
@@ -535,6 +562,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                   child: ChoiceChip(
                                     label: const Text('Select Hostel'),
                                     selected: _useHostelLocation,
+                                    selectedColor: Colors.lightGreen,
+                                    labelStyle: TextStyle(
+                                      color: _useHostelLocation ? Colors.white : Colors.black,
+                                    ),
                                     onSelected: (selected) {
                                       setState(() {
                                         _useHostelLocation = selected;
@@ -557,6 +588,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 height: 250, // Larger map for better selection
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.green.shade200),
                                 ),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
@@ -565,7 +597,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                           child: Column(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
-                                              CircularProgressIndicator(),
+                                              CircularProgressIndicator(
+                                                valueColor: AlwaysStoppedAnimation<Color>(Colors.lightGreen),
+                                              ),
                                               SizedBox(height: 8),
                                               Text('Getting your location...'),
                                             ],
@@ -590,7 +624,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                                       markerId: const MarkerId('delivery'),
                                                       position: _selectedLocation!,
                                                       infoWindow: const InfoWindow(title: 'Delivery Location'),
-                                                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                                                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
                                                     ),
                                                   },
                                                 ),
@@ -599,7 +633,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                                   right: 10,
                                                   child: FloatingActionButton.small(
                                                     onPressed: _getCurrentLocation,
-                                                    child: const Icon(Icons.my_location),
+                                                    backgroundColor: Colors.lightGreen,
+                                                    child: const Icon(Icons.my_location, color: Colors.white),
                                                   ),
                                                 ),
                                               ],
@@ -616,6 +651,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                                     const SizedBox(height: 16),
                                                     ElevatedButton(
                                                       onPressed: _getCurrentLocation,
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: Colors.lightGreen,
+                                                        foregroundColor: Colors.white,
+                                                      ),
                                                       child: const Text('Try Again'),
                                                     ),
                                                   ],
@@ -679,9 +718,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             
                             // Address display
                             if (_selectedAddress.isNotEmpty)
-                              Text(
-                                'Selected Address: $_selectedAddress',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.lightGreen.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.check_circle, color: Colors.lightGreen, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _selectedAddress,
+                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                           ],
                         ),
@@ -695,6 +749,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       elevation: 2,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.green.shade100, width: 1),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -723,6 +778,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 color: isEnabled ? null : Colors.grey.shade100,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                                 child: RadioListTile<String>(
                                   title: Text(
                                     method,
@@ -740,6 +798,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                         }
                                       : null,
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                                  activeColor: Colors.lightGreen,
                                 ),
                               );
                             }),
@@ -755,6 +814,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       elevation: 4,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.green.shade200, width: 1),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(20),
@@ -788,7 +848,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text('Free', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                                  const Text('Free', style: TextStyle(
+                                    color: Colors.lightGreen,
+                                    fontWeight: FontWeight.bold,
+                                  )),
                                 ],
                               ),
                             ),
@@ -808,7 +871,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                   '₹${total.toStringAsFixed(2)}',
                                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Colors.lightGreen,
                                   ),
                                 ),
                               ],
@@ -832,6 +895,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
+                          elevation: 2,
                         ),
                         child: _isPlacingOrder
                             ? const Row(
@@ -874,8 +938,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label),
-        if (value is String) Text(value) else value,
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        if (value is String) Text(value, style: const TextStyle(fontWeight: FontWeight.w500)) else value,
       ],
     );
   }
