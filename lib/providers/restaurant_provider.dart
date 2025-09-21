@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/restaurant_model.dart';
 
 final restaurantsProvider = StreamProvider<List<RestaurantModel>>((ref) {
@@ -54,6 +55,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Generate a unique restaurant ID
   String generateRestaurantId() {
@@ -76,22 +78,42 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+      
       String restaurantId;
       
       if (restaurant.id.isEmpty) {
-        // Generate a new ID if not provided
         restaurantId = generateRestaurantId();
       } else {
         restaurantId = restaurant.id;
       }
       
       // Create restaurant with the correct ID
-      final restaurantWithId = restaurant.copyWith(id: restaurantId);
+      final restaurantWithId = restaurant.copyWith(
+        id: restaurantId,
+        ownerId: user.uid,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
       
+      // Create restaurant document
       await _firestore
           .collection('restaurants')
           .doc(restaurantId)
           .set(restaurantWithId.toFirestore());
+      
+      // Update user document with restaurantId
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .update({
+            'restaurantId': restaurantId,
+            'hasRestaurant': true,
+            'updatedAt': Timestamp.fromDate(DateTime.now()),
+          });
       
       state = const AsyncValue.data(null);
       return restaurantId;
@@ -202,18 +224,25 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> deleteRestaurant(String id) async {
+  Future<void> deleteRestaurant(String restaurantId) async {
     try {
+      state = const AsyncValue.loading();
+      
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+      
       // Get references to Firestore collections
-      final restaurantDoc = FirebaseFirestore.instance.collection('restaurants').doc(id);
-      final menuItemsRef = FirebaseFirestore.instance
+      final restaurantDoc = _firestore.collection('restaurants').doc(restaurantId);
+      final menuItemsRef = _firestore
           .collection('restaurants')
-          .doc(id)
+          .doc(restaurantId)
           .collection('menuItems');
       
       // First, delete all menu items associated with this restaurant
       final menuItemsSnapshot = await menuItemsRef.get();
-      final batch = FirebaseFirestore.instance.batch();
+      final batch = _firestore.batch();
       
       for (final doc in menuItemsSnapshot.docs) {
         batch.delete(doc.reference);
@@ -222,7 +251,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         try {
           final imageUrl = doc.data()['imageUrl'] as String?;
           if (imageUrl != null && imageUrl.isNotEmpty) {
-            final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+            final ref = _storage.refFromURL(imageUrl);
             await ref.delete();
           }
         } catch (e) {
@@ -237,13 +266,23 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       // Delete the restaurant document
       await restaurantDoc.delete();
       
+      // Remove restaurantId from user document
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .update({
+            'restaurantId': FieldValue.delete(),
+            'hasRestaurant': false,
+            'updatedAt': Timestamp.fromDate(DateTime.now()),
+          });
+      
       // Optional: Delete restaurant image from storage if exists
       try {
         final restaurantSnapshot = await restaurantDoc.get();
         if (restaurantSnapshot.exists) {
           final imageUrl = restaurantSnapshot.data()?['imageUrl'] as String?;
           if (imageUrl != null && imageUrl.isNotEmpty) {
-            final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+            final ref = _storage.refFromURL(imageUrl);
             await ref.delete();
           }
         }
@@ -255,12 +294,12 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       // Optional: Delete any other related data (reviews, orders, etc.)
       try {
         // Delete reviews
-        final reviewsRef = FirebaseFirestore.instance
+        final reviewsRef = _firestore
             .collection('reviews')
-            .where('restaurantId', isEqualTo: id);
+            .where('restaurantId', isEqualTo: restaurantId);
         
         final reviewsSnapshot = await reviewsRef.get();
-        final reviewsBatch = FirebaseFirestore.instance.batch();
+        final reviewsBatch = _firestore.batch();
         
         for (final doc in reviewsSnapshot.docs) {
           reviewsBatch.delete(doc.reference);
@@ -271,14 +310,34 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         print('Error deleting reviews: $e');
       }
       
-      print('Restaurant $id and associated data deleted successfully');
+      state = const AsyncValue.data(null);
+      print('Restaurant $restaurantId and associated data deleted successfully');
       
     } on FirebaseException catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
       print('Firebase error deleting restaurant: ${e.message}');
       throw Exception('Failed to delete restaurant: ${e.message}');
     } catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
       print('Unexpected error deleting restaurant: $e');
       throw Exception('Failed to delete restaurant: $e');
+    }
+  }
+
+  // Get restaurant by owner ID
+  Future<RestaurantModel?> getRestaurantByOwner(String ownerId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('restaurants')
+          .where('ownerId', isEqualTo: ownerId)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+      
+      return RestaurantModel.fromFirestore(snapshot.docs.first);
+    } catch (e) {
+      rethrow;
     }
   }
 }

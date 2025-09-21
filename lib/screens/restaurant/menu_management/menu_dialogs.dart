@@ -7,8 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../../providers/menu_provider.dart';
-import '../../models/menu_item_model.dart';
+import '../../../../providers/menu_provider.dart';
+import '../../../../models/menu_item_model.dart';
 
 class MenuDialogState {
   final TextEditingController nameController;

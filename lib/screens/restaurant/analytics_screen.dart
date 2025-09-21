@@ -1,5 +1,4 @@
-// ignore_for_file: deprecated_member_use
-
+// analytics_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -130,6 +129,81 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           ),
         ),
         data: (analyticsData) {
+          // Check if user has a restaurant
+          if (!analyticsData.hasRestaurant) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.restaurant, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No Restaurant Found',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You need to create or join a restaurant to view analytics',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Navigate to restaurant creation/join screen
+                      // Navigator.push(context, MaterialPageRoute(builder: (context) => CreateRestaurantScreen()));
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: const Text('Create Restaurant'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Check if there's any data to show
+          final hasData = analyticsData.totalOrders > 0;
+          
+          if (!hasData) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.analytics, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No Data Available',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No orders found for the selected period: $_selectedPeriod',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -333,27 +407,29 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           
                           const SizedBox(height: 16),
                           
-                          Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                children: [
-                                  for (int i = 0; i < analyticsData.topItems.length; i++) ...[
-                                    if (i > 0) const Divider(height: 1, thickness: 0.5),
-                                    _buildTopItemRow(
-                                      analyticsData.topItems[i].name, 
-                                      analyticsData.topItems[i].quantity, 
-                                      '₹${analyticsData.topItems[i].revenue.toStringAsFixed(0)}'
+                          analyticsData.topItems.isEmpty
+                              ? _buildEmptyState('No items sold yet')
+                              : Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      children: [
+                                        for (int i = 0; i < analyticsData.topItems.length; i++) ...[
+                                          if (i > 0) const Divider(height: 1, thickness: 0.5),
+                                          _buildTopItemRow(
+                                            analyticsData.topItems[i].name, 
+                                            analyticsData.topItems[i].quantity, 
+                                            '₹${analyticsData.topItems[i].revenue.toStringAsFixed(0)}'
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.3),
+                                  ),
+                                ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.3),
                         ],
                       ),
                     ),
@@ -376,113 +452,121 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           
                           const SizedBox(height: 16),
                           
-                          Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                children: [
-                                  SizedBox(
-                                    height: 180,
-                                    child: PieChart(
-                                      PieChartData(
-                                        sections: analyticsData.orderStatusDistribution.entries.map((e) {
-                                          final status = e.key;
-                                          final value = e.value;
-                                          final percentage = (value / analyticsData.totalOrders * 100).round();
-                                          
-                                          Color color;
-                                          switch (status) {
-                                            case 'Delivered':
-                                              color = Colors.green;
-                                              break;
-                                            case 'Preparing':
-                                              color = Colors.orange;
-                                              break;
-                                            case 'Pending':
-                                              color = Colors.blue;
-                                              break;
-                                            case 'Out for Delivery':
-                                              color = Colors.purple;
-                                              break;
-                                            default:
-                                              color = Colors.grey;
-                                          }
-                                          
-                                          return PieChartSectionData(
-                                            value: value.toDouble(),
-                                            title: '$percentage%',
-                                            color: color,
-                                            radius: 60,
-                                            titleStyle: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
+                          analyticsData.orderStatusDistribution.isEmpty
+                              ? _buildEmptyState('No orders with status data')
+                              : Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Column(
+                                      children: [
+                                        SizedBox(
+                                          height: 180,
+                                          child: PieChart(
+                                            PieChartData(
+                                              sections: analyticsData.orderStatusDistribution.entries.map((e) {
+                                                final status = e.key;
+                                                final value = e.value;
+                                                final percentage = (value / analyticsData.totalOrders * 100).round();
+                                                
+                                                Color color;
+                                                switch (status) {
+                                                  case 'Delivered':
+                                                    color = Colors.green;
+                                                    break;
+                                                  case 'Preparing':
+                                                    color = Colors.orange;
+                                                    break;
+                                                  case 'Pending':
+                                                    color = Colors.blue;
+                                                    break;
+                                                  case 'Out for Delivery':
+                                                    color = Colors.purple;
+                                                    break;
+                                                  case 'Cancelled':
+                                                    color = Colors.red;
+                                                    break;
+                                                  default:
+                                                    color = Colors.grey;
+                                                }
+                                                
+                                                return PieChartSectionData(
+                                                  value: value.toDouble(),
+                                                  title: '$percentage%',
+                                                  color: color,
+                                                  radius: 60,
+                                                  titleStyle: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                  ),
+                                                );
+                                              }).toList(),
+                                              centerSpaceRadius: 40,
+                                              sectionsSpace: 2,
                                             ),
-                                          );
-                                        }).toList(),
-                                        centerSpaceRadius: 40,
-                                        sectionsSpace: 2,
-                                      ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        // Legend for order status
+                                        Wrap(
+                                          spacing: 12,
+                                          runSpacing: 8,
+                                          alignment: WrapAlignment.center,
+                                          children: analyticsData.orderStatusDistribution.entries.map((e) {
+                                            final status = e.key;
+                                            
+                                            Color color;
+                                            switch (status) {
+                                              case 'Delivered':
+                                                color = Colors.green;
+                                                break;
+                                              case 'Preparing':
+                                                color = Colors.orange;
+                                                break;
+                                              case 'Pending':
+                                                color = Colors.blue;
+                                              case 'Out for Delivery':
+                                                color = Colors.purple;
+                                                break;
+                                              case 'Cancelled':
+                                                color = Colors.red;
+                                                break;
+                                              default:
+                                                color = Colors.grey;
+                                            }
+                                            
+                                            return Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  width: 12,
+                                                  height: 12,
+                                                  decoration: BoxDecoration(
+                                                    color: color,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  status,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[700],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
-                                  // Legend for order status
-                                  Wrap(
-                                    spacing: 12,
-                                    runSpacing: 8,
-                                    alignment: WrapAlignment.center,
-                                    children: analyticsData.orderStatusDistribution.entries.map((e) {
-                                      final status = e.key;
-                                      
-                                      Color color;
-                                      switch (status) {
-                                        case 'Delivered':
-                                          color = Colors.green;
-                                          break;
-                                        case 'Preparing':
-                                          color = Colors.orange;
-                                          break;
-                                        case 'Pending':
-                                          color = Colors.blue;
-                                        case 'Out for Delivery':
-                                          color = Colors.purple;
-                                          break;
-                                        default:
-                                          color = Colors.grey;
-                                      }
-                                      
-                                      return Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 12,
-                                            height: 12,
-                                            decoration: BoxDecoration(
-                                              color: color,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            status,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[700],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ).animate().fadeIn(delay: 1100.ms).slideY(begin: 0.3),
+                                ).animate().fadeIn(delay: 1100.ms).slideY(begin: 0.3),
                         ],
                       ),
                     ),
@@ -616,6 +700,31 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(Icons.inbox, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

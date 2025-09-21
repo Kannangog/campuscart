@@ -4,7 +4,7 @@ import 'package:campuscart/screens/notifications/notifications_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'analytics_screen.dart';
-import 'menu_management_screen.dart';
+import 'menu_management/menu_management_screen.dart';
 import 'orders_management/orders_management_screen.dart';
 import 'orders_location/oders_location_screen.dart';
 import 'restaurant_profile.dart';

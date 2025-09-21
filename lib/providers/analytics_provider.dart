@@ -1,5 +1,4 @@
-// ignore_for_file: avoid_types_as_parameter_names
-
+// analytics_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,7 +17,7 @@ class AnalyticsData {
   final List<String> revenueLabels;
   final List<TopItem> topItems;
   final Map<String, int> orderStatusDistribution;
-  final bool hasRestaurant; // New field to track if user has a restaurant
+  final bool hasRestaurant;
 
   AnalyticsData({
     required this.totalOrders,
@@ -33,7 +32,7 @@ class AnalyticsData {
     required this.revenueLabels,
     required this.topItems,
     required this.orderStatusDistribution,
-    this.hasRestaurant = true, // Default to true for backward compatibility
+    this.hasRestaurant = true,
   });
 }
 
@@ -77,8 +76,10 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
       }
       
       final restaurantId = userDoc.data()?['restaurantId'];
-      if (restaurantId == null) {
-        // Return empty analytics data instead of throwing an error
+      final hasRestaurant = userDoc.data()?['hasRestaurant'] ?? false;
+      
+      if (restaurantId == null || !hasRestaurant) {
+        // Return empty analytics data
         final emptyAnalyticsData = AnalyticsData(
           totalOrders: 0,
           revenue: 0,
@@ -115,19 +116,32 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
           break;
       }
 
-      // Fetch orders data for the restaurant
-      final ordersQuery = FirebaseFirestore.instance
+      // Fetch ALL orders for the restaurant first
+      final allOrdersQuery = FirebaseFirestore.instance
           .collection('orders')
-          .where('restaurantId', isEqualTo: restaurantId)
-          .where('createdAt', isGreaterThanOrEqualTo: startDate)
-          .where('createdAt', isLessThanOrEqualTo: now);
+          .where('restaurantId', isEqualTo: restaurantId);
 
-      final ordersSnapshot = await ordersQuery.get();
-      final orders = ordersSnapshot.docs;
+      final allOrdersSnapshot = await allOrdersQuery.get();
+      final allOrders = allOrdersSnapshot.docs;
+
+      // Filter orders by date manually
+      final filteredOrders = allOrders.where((doc) {
+        final orderData = doc.data();
+        final createdAt = orderData['createdAt'];
+        if (createdAt is Timestamp) {
+          final orderDate = createdAt.toDate();
+          return orderDate.isAfter(startDate) && orderDate.isBefore(now);
+        }
+        return false;
+      }).toList();
 
       // Calculate analytics data
-      final totalOrders = orders.length;
-      final revenue = orders.fold(0.0, (sum, doc) => sum + (doc.data()['totalAmount'] ?? 0.0));
+      final totalOrders = filteredOrders.length;
+      final revenue = filteredOrders.fold(0.0, (sum, doc) {
+        final data = doc.data();
+        return sum + ((data['total'] ?? data['totalAmount'] ?? 0.0) as num).toDouble();
+      });
+      
       final avgOrderValue = totalOrders > 0 ? revenue / totalOrders : 0.0;
       
       // Calculate rating for the restaurant
@@ -138,20 +152,19 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
       
       final ratings = ratingSnapshot.docs;
       final rating = ratings.isNotEmpty 
-          ? ratings.fold(0.0, (sum, doc) => sum + (doc.data()['rating'] ?? 0.0)) / ratings.length
+          ? ratings.fold(0.0, (sum, doc) => sum + ((doc.data()['rating'] ?? 0.0) as num).toDouble()) / ratings.length
           : 0.0;
 
       // Calculate revenue data for chart
-      final revenueData = await _calculateRevenueData(period, restaurantId);
+      final revenueData = await _calculateRevenueData(period, restaurantId, startDate, now);
       
       // Get top selling items
-      final topItems = await _getTopSellingItems(period, restaurantId);
+      final topItems = await _getTopSellingItems(filteredOrders);
       
       // Get order status distribution
-      final orderStatusDistribution = _getOrderStatusDistribution(orders);
+      final orderStatusDistribution = _getOrderStatusDistribution(filteredOrders);
 
       // For demo purposes, using placeholder values for changes
-      // In a real app, you would compare with previous period
       const ordersChange = '+12%';
       const revenueChange = '+8%';
       const avgOrderChange = '+5%';
@@ -178,96 +191,111 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
 
       state = AsyncValue.data(analyticsData);
     } catch (e) {
+      print('Analytics error: $e');
       state = AsyncValue.error(e, StackTrace.current);
     }
   }
 
-  Future<List<double>> _calculateRevenueData(String period, String restaurantId) async {
-    final now = DateTime.now();
+  Future<List<double>> _calculateRevenueData(String period, String restaurantId, DateTime startDate, DateTime endDate) async {
     List<double> revenueData = [];
     
-    switch (period) {
-      case 'Today':
-        // For today, get hourly data (last 12 hours)
-        for (int i = 0; i < 12; i++) {
-          final hourStart = DateTime(now.year, now.month, now.day, now.hour - i);
-          final hourEnd = hourStart.add(const Duration(hours: 1));
+    try {
+      // Get all orders first
+      final allOrdersQuery = FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurantId', isEqualTo: restaurantId);
+
+      final allOrdersSnapshot = await allOrdersQuery.get();
+      final allOrders = allOrdersSnapshot.docs;
+
+      switch (period) {
+        case 'Today':
+          // For today, get hourly data (last 12 hours)
+          for (int i = 0; i < 12; i++) {
+            final hourStart = DateTime(endDate.year, endDate.month, endDate.day, endDate.hour - i);
+            final hourEnd = hourStart.add(const Duration(hours: 1));
+            
+            double hourRevenue = 0.0;
+            for (final doc in allOrders) {
+              final data = doc.data();
+              final createdAt = data['createdAt'];
+              if (createdAt is Timestamp) {
+                final orderDate = createdAt.toDate();
+                if (orderDate.isAfter(hourStart) && orderDate.isBefore(hourEnd)) {
+                  hourRevenue += ((data['total'] ?? data['totalAmount'] ?? 0.0) as num).toDouble();
+                }
+              }
+            }
+            revenueData.add(hourRevenue);
+          }
+          revenueData = revenueData.reversed.toList();
+          break;
           
-          final query = FirebaseFirestore.instance
-              .collection('orders')
-              .where('restaurantId', isEqualTo: restaurantId)
-              .where('createdAt', isGreaterThanOrEqualTo: hourStart)
-              .where('createdAt', isLessThan: hourEnd);
+        case 'Last 7 Days':
+          // For last 7 days, get daily data
+          for (int i = 6; i >= 0; i--) {
+            final dayStart = DateTime(endDate.year, endDate.month, endDate.day - i);
+            final dayEnd = dayStart.add(const Duration(days: 1));
+            
+            double dayRevenue = 0.0;
+            for (final doc in allOrders) {
+              final data = doc.data();
+              final createdAt = data['createdAt'];
+              if (createdAt is Timestamp) {
+                final orderDate = createdAt.toDate();
+                if (orderDate.isAfter(dayStart) && orderDate.isBefore(dayEnd)) {
+                  dayRevenue += ((data['total'] ?? data['totalAmount'] ?? 0.0) as num).toDouble();
+                }
+              }
+            }
+            revenueData.add(dayRevenue);
+          }
+          break;
           
-          final snapshot = await query.get();
-          final revenue = snapshot.docs.fold(0.0, (sum, doc) => sum + (doc.data()['totalAmount'] ?? 0.0));
-          revenueData.add(revenue);
-        }
-        revenueData = revenueData.reversed.toList();
-        break;
-        
-      case 'Last 7 Days':
-        // For last 7 days, get daily data
-        for (int i = 6; i >= 0; i--) {
-          final dayStart = DateTime(now.year, now.month, now.day - i);
-          final dayEnd = dayStart.add(const Duration(days: 1));
+        case 'Last 30 Days':
+          // For last 30 days, get weekly data (4 weeks)
+          for (int i = 3; i >= 0; i--) {
+            final weekStart = DateTime(endDate.year, endDate.month, endDate.day - (i * 7));
+            final weekEnd = weekStart.add(const Duration(days: 7));
+            
+            double weekRevenue = 0.0;
+            for (final doc in allOrders) {
+              final data = doc.data();
+              final createdAt = data['createdAt'];
+              if (createdAt is Timestamp) {
+                final orderDate = createdAt.toDate();
+                if (orderDate.isAfter(weekStart) && orderDate.isBefore(weekEnd)) {
+                  weekRevenue += ((data['total'] ?? data['totalAmount'] ?? 0.0) as num).toDouble();
+                }
+              }
+            }
+            revenueData.add(weekRevenue);
+          }
+          break;
           
-          final query = FirebaseFirestore.instance
-              .collection('orders')
-              .where('restaurantId', isEqualTo: restaurantId)
-              .where('createdAt', isGreaterThanOrEqualTo: dayStart)
-              .where('createdAt', isLessThan: dayEnd);
-          
-          final snapshot = await query.get();
-          final revenue = snapshot.docs.fold(0.0, (sum, doc) => sum + (doc.data()['totalAmount'] ?? 0.0));
-          revenueData.add(revenue);
-        }
-        break;
-        
-      case 'Last 30 Days':
-        // For last 30 days, get weekly data (4 weeks)
-        for (int i = 3; i >= 0; i--) {
-          final weekStart = DateTime(now.year, now.month, now.day - (i * 7));
-          final weekEnd = weekStart.add(const Duration(days: 7));
-          
-          final query = FirebaseFirestore.instance
-              .collection('orders')
-              .where('restaurantId', isEqualTo: restaurantId)
-              .where('createdAt', isGreaterThanOrEqualTo: weekStart)
-              .where('createdAt', isLessThan: weekEnd);
-          
-          final snapshot = await query.get();
-          final revenue = snapshot.docs.fold(0.0, (sum, doc) => sum + (doc.data()['totalAmount'] ?? 0.0));
-          revenueData.add(revenue);
-        }
-        break;
-        
-      default:
-        revenueData = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        default:
+          revenueData = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+      }
+    } catch (e) {
+      print('Revenue data calculation error: $e');
+      revenueData = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     }
     
     return revenueData;
   }
 
-  Future<List<TopItem>> _getTopSellingItems(String period, String restaurantId) async {
+  Future<List<TopItem>> _getTopSellingItems(List<QueryDocumentSnapshot<Map<String, dynamic>>> orders) async {
     try {
-      // Query order items for the restaurant
-      final ordersQuery = FirebaseFirestore.instance
-          .collection('orders')
-          .where('restaurantId', isEqualTo: restaurantId);
-      
-      final ordersSnapshot = await ordersQuery.get();
-      
       // Aggregate item sales
       final itemSales = <String, Map<String, dynamic>>{};
       
-      for (final order in ordersSnapshot.docs) {
+      for (final order in orders) {
         final items = order.data()['items'] as List<dynamic>? ?? [];
         
         for (final item in items) {
           final itemName = item['name'] ?? 'Unknown Item';
           final quantity = (item['quantity'] ?? 1) as int;
-          final price = (item['price'] ?? 0.0) as double;
+          final price = ((item['price'] ?? 0.0) as num).toDouble();
           final revenue = quantity * price;
           
           if (itemSales.containsKey(itemName)) {
@@ -296,14 +324,8 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
       // Return top 5 items
       return topItemsList.take(5).toList();
     } catch (e) {
-      // Fallback to sample data if there's an error
-      return [
-        TopItem(name: 'Margherita Pizza', quantity: 45, revenue: 540.0),
-        TopItem(name: 'Chicken Burger', quantity: 38, revenue: 456.0),
-        TopItem(name: 'Caesar Salad', quantity: 32, revenue: 320.0),
-        TopItem(name: 'Pasta Carbonara', quantity: 28, revenue: 420.0),
-        TopItem(name: 'Fish & Chips', quantity: 25, revenue: 375.0),
-      ];
+      print('Top items error: $e');
+      return [];
     }
   }
 
@@ -320,6 +342,9 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
       final status = order.data()['status'] ?? 'Pending';
       distribution[status] = (distribution[status] ?? 0) + 1;
     }
+    
+    // Remove statuses with zero count
+    distribution.removeWhere((key, value) => value == 0);
     
     return distribution;
   }

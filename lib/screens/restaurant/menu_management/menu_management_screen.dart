@@ -1,13 +1,13 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:campuscart/models/menu_item_model.dart';
-import 'package:campuscart/utilities/menu_dialogs.dart';
-import 'package:campuscart/utilities/menu_item_card.dart';
+import 'package:campuscart/screens/restaurant/menu_management/menu_dialogs.dart';
+import 'package:campuscart/screens/restaurant/menu_management/menu_item_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/menu_provider.dart';
-import '../../providers/restaurant_provider.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../providers/menu_provider.dart';
+import '../../../providers/restaurant_provider.dart';
 
 class MenuManagementScreen extends ConsumerStatefulWidget {
   const MenuManagementScreen({super.key});
