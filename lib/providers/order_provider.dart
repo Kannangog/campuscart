@@ -111,11 +111,11 @@ Stream<List<OrderModel>> _createOrderStreamWithFallback(
   return streamController.stream;
 }
 
+// Simple user orders provider without complex queries
 final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, userId) {
   final query = FirebaseFirestore.instance
       .collection('orders')
-      .where('userId', isEqualTo: userId)
-      .orderBy('createdAt', descending: true);
+      .where('userId', isEqualTo: userId);
 
   return _createOrderStreamWithFallback(
     query,
@@ -125,11 +125,11 @@ final userOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref,
   );
 });
 
+// Simple restaurant orders provider
 final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
   final query = FirebaseFirestore.instance
       .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .orderBy('createdAt', descending: true);
+      .where('restaurantId', isEqualTo: restaurantId);
 
   return _createOrderStreamWithFallback(
     query,
@@ -139,10 +139,10 @@ final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>
   );
 });
 
+// All orders provider
 final allOrdersProvider = StreamProvider<List<OrderModel>>((ref) {
   final query = FirebaseFirestore.instance
-      .collection('orders')
-      .orderBy('createdAt', descending: true);
+      .collection('orders');
 
   return _createOrderStreamWithFallback(
     query,
@@ -179,18 +179,11 @@ final orderProvider = StreamProvider.family<OrderModel?, String>((ref, orderId) 
   return streamController.stream;
 });
 
+// Simplified active restaurant orders provider
 final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
   final query = FirebaseFirestore.instance
       .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('status', whereIn: [
-        'pending',
-        'confirmed', 
-        'preparing',
-        'ready',
-        'outForDelivery'
-      ])
-      .orderBy('createdAt', descending: true);
+      .where('restaurantId', isEqualTo: restaurantId);
 
   return _createOrderStreamWithFallback(
     query,
@@ -200,120 +193,16 @@ final activeRestaurantOrdersProvider = StreamProvider.family<List<OrderModel>, S
   );
 });
 
-// Order status specific providers
+// Order status specific providers - simplified
 final newOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
   final query = FirebaseFirestore.instance
       .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('status', isEqualTo: 'pending')
-      .orderBy('createdAt', descending: true);
+      .where('restaurantId', isEqualTo: restaurantId);
 
   return _createOrderStreamWithFallback(
     query,
     onIndexBuilding: () => print('Index building for new orders'),
     onIndexBuilt: () => print('Index built for new orders'),
-    ref: ref,
-  );
-});
-
-final preparingOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
-  final query = FirebaseFirestore.instance
-      .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('status', whereIn: ['confirmed', 'preparing'])
-      .orderBy('createdAt', descending: true);
-
-  return _createOrderStreamWithFallback(
-    query,
-    onIndexBuilding: () => print('Index building for preparing orders'),
-    onIndexBuilt: () => print('Index built for preparing orders'),
-    ref: ref,
-  );
-});
-
-final readyOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
-  final query = FirebaseFirestore.instance
-      .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('status', isEqualTo: 'ready')
-      .orderBy('createdAt', descending: true);
-
-  return _createOrderStreamWithFallback(
-    query,
-    onIndexBuilding: () => print('Index building for ready orders'),
-    onIndexBuilt: () => print('Index built for ready orders'),
-    ref: ref,
-  );
-});
-
-final completedOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
-  final query = FirebaseFirestore.instance
-      .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('status', whereIn: ['delivered', 'completed'])
-      .orderBy('createdAt', descending: true);
-
-  return _createOrderStreamWithFallback(
-    query,
-    onIndexBuilding: () => print('Index building for completed orders'),
-    onIndexBuilt: () => print('Index built for completed orders'),
-    ref: ref,
-  );
-});
-
-// Time-based order providers
-final todayOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
-  final now = DateTime.now();
-  final startOfDay = DateTime(now.year, now.month, now.day);
-  
-  final query = FirebaseFirestore.instance
-      .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-      .orderBy('createdAt', descending: true);
-
-  return _createOrderStreamWithFallback(
-    query,
-    onIndexBuilding: () => print('Index building for today orders'),
-    onIndexBuilt: () => print('Index built for today orders'),
-    ref: ref,
-  );
-});
-
-final yesterdayOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
-  final now = DateTime.now();
-  final startOfYesterday = DateTime(now.year, now.month, now.day - 1);
-  final endOfYesterday = DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
-  
-  final query = FirebaseFirestore.instance
-      .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfYesterday))
-      .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endOfYesterday))
-      .orderBy('createdAt', descending: true);
-
-  return _createOrderStreamWithFallback(
-    query,
-    onIndexBuilding: () => print('Index building for yesterday orders'),
-    onIndexBuilt: () => print('Index built for yesterday orders'),
-    ref: ref,
-  );
-});
-
-final last7DaysOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
-  final now = DateTime.now();
-  final sevenDaysAgo = DateTime(now.year, now.month, now.day - 7);
-  
-  final query = FirebaseFirestore.instance
-      .collection('orders')
-      .where('restaurantId', isEqualTo: restaurantId)
-      .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
-      .orderBy('createdAt', descending: true);
-
-  return _createOrderStreamWithFallback(
-    query,
-    onIndexBuilding: () => print('Index building for last 7 days orders'),
-    onIndexBuilt: () => print('Index built for last 7 days orders'),
     ref: ref,
   );
 });
@@ -343,32 +232,30 @@ class OrderManagementService {
   Future<void> _checkAndCancelExpiredOrders() async {
     try {
       final threeHoursAgo = DateTime.now().subtract(_orderAcceptanceTimeout);
-      final timestampThreeHoursAgo = Timestamp.fromDate(threeHoursAgo);
 
-      // Get orders that are still in pending state for more than 3 hours
-      final pendingOrdersQuery = _firestore
-          .collection('orders')
-          .where('status', isEqualTo: 'pending')
-          .where('createdAt', isLessThanOrEqualTo: timestampThreeHoursAgo);
-
-      final pendingOrdersSnapshot = await pendingOrdersQuery.get();
+      // Get all orders and filter manually to avoid complex queries
+      final allOrdersQuery = _firestore.collection('orders');
+      final allOrdersSnapshot = await allOrdersQuery.get();
       
-      for (final doc in pendingOrdersSnapshot.docs) {
+      for (final doc in allOrdersSnapshot.docs) {
         final order = OrderModel.fromFirestore(doc);
-        await _autoCancelOrder(order, 'Order was not accepted within 3 hours');
-      }
-
-      // Get orders that are in process but not delivered for more than 3 hours
-      final processingOrdersQuery = _firestore
-          .collection('orders')
-          .where('status', whereIn: ['confirmed', 'preparing', 'ready', 'outForDelivery'])
-          .where('createdAt', isLessThanOrEqualTo: timestampThreeHoursAgo);
-
-      final processingOrdersSnapshot = await processingOrdersQuery.get();
-      
-      for (final doc in processingOrdersSnapshot.docs) {
-        final order = OrderModel.fromFirestore(doc);
-        await _autoCancelOrder(order, 'Order was not delivered within 3 hours');
+        final orderCreatedAt = order.createdAt;
+        
+        // Check if order is older than 3 hours and still pending
+        if (orderCreatedAt.isBefore(threeHoursAgo) && 
+            order.status == OrderStatus.pending) {
+          await _autoCancelOrder(order, 'Order was not accepted within 3 hours');
+        }
+        
+        // Check if order is in process but not delivered for more than 3 hours
+        final isProcessing = order.status == OrderStatus.confirmed || 
+                            order.status == OrderStatus.preparing || 
+                            order.status == OrderStatus.ready || 
+                            order.status == OrderStatus.outForDelivery;
+        
+        if (orderCreatedAt.isBefore(threeHoursAgo) && isProcessing) {
+          await _autoCancelOrder(order, 'Order was not delivered within 3 hours');
+        }
       }
     } catch (e) {
       print('Error in auto-cancellation check: $e');
@@ -380,17 +267,38 @@ class OrderManagementService {
       if (order.status != OrderStatus.cancelled && order.status != OrderStatus.delivered) {
         await _firestore.collection('orders').doc(order.id).update({
           'status': OrderStatus.cancelled.toString().split('.').last,
-          'cancellationReason': reason,
+          'cancellationReason': 'Auto-cancelled: $reason',
           'updatedAt': Timestamp.now(),
           'cancelledAt': Timestamp.now(),
+          'cancelledBy': 'system',
         });
         
         print('Automatically cancelled order ${order.id}: $reason');
         
-        // You might want to send a notification to the user here
+        // Send notification to user about auto-cancellation
+        await _sendAutoCancellationNotification(order, reason);
       }
     } catch (e) {
       print('Error auto-cancelling order ${order.id}: $e');
+    }
+  }
+
+  Future<void> _sendAutoCancellationNotification(OrderModel order, String reason) async {
+    try {
+      // Add a notification to the user's notifications collection
+      await _firestore.collection('notifications').add({
+        'userId': order.userId,
+        'title': 'Order Auto-Cancelled',
+        'message': 'Your order #${order.id} was automatically cancelled: $reason',
+        'type': 'order_cancelled',
+        'orderId': order.id,
+        'read': false,
+        'createdAt': Timestamp.now(),
+      });
+      
+      print('Sent auto-cancellation notification for order ${order.id}');
+    } catch (e) {
+      print('Error sending auto-cancellation notification: $e');
     }
   }
 
@@ -499,48 +407,30 @@ class OrderManagementService {
           .collection('orders')
           .where('restaurantId', isEqualTo: restaurantId);
 
-      if (startDate != null) {
-        query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
-      }
-      if (endDate != null) {
-        query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
-      }
-
-      // Try with ordering first
-      final snapshot = await query.orderBy('createdAt', descending: true).get();
+      final snapshot = await query.get();
       final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
 
-      return _calculateOrderAnalytics(orders);
+      // Filter by date manually if needed
+      List<OrderModel> filteredOrders = orders;
+      if (startDate != null) {
+        filteredOrders = filteredOrders.where((order) => 
+          order.createdAt.isAfter(startDate)).toList();
+      }
+      if (endDate != null) {
+        filteredOrders = filteredOrders.where((order) => 
+          order.createdAt.isBefore(endDate)).toList();
+      }
+
+      return _calculateOrderAnalytics(filteredOrders);
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
-        // Fallback: try without ordering
-        try {
-          Query query = _firestore
-              .collection('orders')
-              .where('restaurantId', isEqualTo: restaurantId);
-
-          if (startDate != null) {
-            query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
-          }
-          if (endDate != null) {
-            query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
-          }
-
-          final snapshot = await query.get();
-          final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
-          // Manual sorting
-          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-          return _calculateOrderAnalytics(orders);
-        } catch (fallbackError) {
-          // If fallback also fails, wait and retry
-          await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
-          return getOrderAnalytics(restaurantId, 
-            startDate: startDate, 
-            endDate: endDate, 
-            retryCount: retryCount + 1
-          );
-        }
+        // Wait and retry
+        await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+        return getOrderAnalytics(restaurantId, 
+          startDate: startDate, 
+          endDate: endDate, 
+          retryCount: retryCount + 1
+        );
       }
       rethrow;
     }
@@ -590,28 +480,19 @@ class OrderManagementService {
       final snapshot = await _firestore
           .collection('orders')
           .where('restaurantId', isEqualTo: restaurantId)
-          .where('status', isEqualTo: status.toString().split('.').last)
-          .orderBy('createdAt', descending: true)
           .get();
 
-      return snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
+      final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
+      
+      // Filter by status manually
+      final filteredOrders = orders.where((order) => order.status == status).toList();
+      filteredOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      return filteredOrders;
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
-        // Fallback without ordering
-        try {
-          final snapshot = await _firestore
-              .collection('orders')
-              .where('restaurantId', isEqualTo: restaurantId)
-              .where('status', isEqualTo: status.toString().split('.').last)
-              .get();
-
-          final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
-          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return orders;
-        } catch (fallbackError) {
-          await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
-          return getOrdersByStatus(restaurantId, status, retryCount: retryCount + 1);
-        }
+        await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+        return getOrdersByStatus(restaurantId, status, retryCount: retryCount + 1);
       }
       rethrow;
     }
