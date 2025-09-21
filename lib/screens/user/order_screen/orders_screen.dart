@@ -59,39 +59,47 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             fontSize: 20,
           ),
         ),
-        backgroundColor: Colors.lightGreen, // Light green background
+        backgroundColor: Colors.lightGreen,
         elevation: 4,
         iconTheme: const IconThemeData(color: Colors.white),
+        // Only show filter button when there are orders
         actions: [
-          // Filter button with badge if any filter is active
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list_rounded, size: 28),
-                onPressed: () => _showFilterDialog(context),
-                color: Colors.white,
-              ),
-              if (_selectedTimeFilter != 'All' || _selectedStatusFilter != null)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Text(
-                      '!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+          orders.when(
+            data: (orderList) {
+              if (orderList.isEmpty) return const SizedBox.shrink();
+              
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.filter_list_rounded, size: 28),
+                    onPressed: () => _showFilterDialog(context),
+                    color: Colors.white,
+                  ),
+                  if (_selectedTimeFilter != 'All' || _selectedStatusFilter != null)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Text(
+                          '!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-            ],
+                ],
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (error, stack) => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -117,6 +125,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             final filteredOrders = _filterOrders(orderList, _selectedTimeFilter, _selectedStatusFilter);
             
             if (filteredOrders.isEmpty) {
+              // Show empty state with filter info if filters are active
+              if (_selectedTimeFilter != 'All' || _selectedStatusFilter != null) {
+                return _buildEmptyFilteredOrders(context);
+              }
               return _buildEmptyOrders(context);
             }
 
@@ -139,35 +151,46 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                         ),
                         const SizedBox(width: 8),
-                        if (_selectedTimeFilter != 'All')
-                          Chip(
-                            label: Text(
-                              _selectedTimeFilter,
-                              style: const TextStyle(fontSize: 12),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                if (_selectedTimeFilter != 'All')
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8.0),
+                                    child: Chip(
+                                      label: Text(
+                                        _selectedTimeFilter,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      backgroundColor: Colors.lightGreen.shade100,
+                                      deleteIcon: const Icon(Icons.close, size: 16),
+                                      onDeleted: () {
+                                        setState(() {
+                                          _selectedTimeFilter = 'All';
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                if (_selectedStatusFilter != null)
+                                  Chip(
+                                    label: Text(
+                                      _selectedStatusFilter!,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    backgroundColor: Colors.lightGreen.shade100,
+                                    deleteIcon: const Icon(Icons.close, size: 16),
+                                    onDeleted: () {
+                                      setState(() {
+                                        _selectedStatusFilter = null;
+                                      });
+                                    },
+                                  ),
+                              ],
                             ),
-                            backgroundColor: Colors.lightGreen.shade100,
-                            deleteIcon: const Icon(Icons.close, size: 16),
-                            onDeleted: () {
-                              setState(() {
-                                _selectedTimeFilter = 'All';
-                              });
-                            },
                           ),
-                        if (_selectedStatusFilter != null)
-                          Chip(
-                            label: Text(
-                              _selectedStatusFilter!,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            backgroundColor: Colors.lightGreen.shade100,
-                            deleteIcon: const Icon(Icons.close, size: 16),
-                            onDeleted: () {
-                              setState(() {
-                                _selectedStatusFilter = null;
-                              });
-                            },
-                          ),
-                        const Spacer(),
+                        ),
                         TextButton(
                           onPressed: () {
                             setState(() {
@@ -188,81 +211,94 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   color: Colors.lightGreen.shade50,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        // Time filters
-                        ..._timeFilterOptions.map((filter) {
-                          return Container(
-                            margin: const EdgeInsets.only(right: 8.0),
-                            child: FilterChip(
-                              label: Text(
-                                filter,
-                                style: TextStyle(
-                                  color: _selectedTimeFilter == filter 
-                                    ? Colors.white 
-                                    : Colors.green,
+                  child: Column(
+                    children: [
+                      // Time filters
+                      SizedBox(
+                        height: 40,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: _timeFilterOptions.map((filter) {
+                              return Container(
+                                margin: const EdgeInsets.only(right: 8.0),
+                                child: FilterChip(
+                                  label: Text(
+                                    filter,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: _selectedTimeFilter == filter 
+                                        ? Colors.white 
+                                        : Colors.green,
+                                    ),
+                                  ),
+                                  selected: _selectedTimeFilter == filter,
+                                  selectedColor: Colors.lightGreen,
+                                  checkmarkColor: Colors.white,
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: BorderSide(
+                                      color: _selectedTimeFilter == filter 
+                                        ? Colors.lightGreen 
+                                        : Colors.green.shade200,
+                                    ),
+                                  ),
+                                  onSelected: (bool selected) {
+                                    setState(() {
+                                      _selectedTimeFilter = selected ? filter : 'All';
+                                    });
+                                  },
                                 ),
-                              ),
-                              selected: _selectedTimeFilter == filter,
-                              selectedColor: Colors.lightGreen,
-                              checkmarkColor: Colors.white,
-                              backgroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: BorderSide(
-                                  color: _selectedTimeFilter == filter 
-                                    ? Colors.lightGreen 
-                                    : Colors.green.shade200,
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Status filters
+                      SizedBox(
+                        height: 40,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: _statusFilterOptions.map((filter) {
+                              return Container(
+                                margin: const EdgeInsets.only(right: 8.0),
+                                child: FilterChip(
+                                  label: Text(
+                                    filter,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: _selectedStatusFilter == filter 
+                                        ? Colors.white 
+                                        : Colors.green,
+                                    ),
+                                  ),
+                                  selected: _selectedStatusFilter == filter,
+                                  selectedColor: Colors.lightGreen,
+                                  checkmarkColor: Colors.white,
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: BorderSide(
+                                      color: _selectedStatusFilter == filter 
+                                        ? Colors.lightGreen 
+                                        : Colors.green.shade200,
+                                    ),
+                                  ),
+                                  onSelected: (bool selected) {
+                                    setState(() {
+                                      _selectedStatusFilter = selected ? filter : null;
+                                    });
+                                  },
                                 ),
-                              ),
-                              onSelected: (bool selected) {
-                                setState(() {
-                                  _selectedTimeFilter = selected ? filter : 'All';
-                                });
-                              },
-                            ),
-                          );
-                        }),
-                        
-                        const SizedBox(width: 8),
-                        
-                        // Status filters
-                        ..._statusFilterOptions.map((filter) {
-                          return Container(
-                            margin: const EdgeInsets.only(right: 8.0),
-                            child: FilterChip(
-                              label: Text(
-                                filter,
-                                style: TextStyle(
-                                  color: _selectedStatusFilter == filter 
-                                    ? Colors.white 
-                                    : Colors.green,
-                                ),
-                              ),
-                              selected: _selectedStatusFilter == filter,
-                              selectedColor: Colors.lightGreen,
-                              checkmarkColor: Colors.white,
-                              backgroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: BorderSide(
-                                  color: _selectedStatusFilter == filter 
-                                    ? Colors.lightGreen 
-                                    : Colors.green.shade200,
-                                ),
-                              ),
-                              onSelected: (bool selected) {
-                                setState(() {
-                                  _selectedStatusFilter = selected ? filter : null;
-                                });
-                              },
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 
@@ -305,10 +341,15 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  error.toString(),
-                  style: TextStyle(color: Colors.grey.shade600),
-                  textAlign: TextAlign.center,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Text(
+                    error.toString(),
+                    style: TextStyle(color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
@@ -433,13 +474,16 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           
           const SizedBox(height: 12),
           
-          Text(
-            'When you place orders, they\'ll appear here',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 16,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Text(
+              'When you place orders, they\'ll appear here',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ).animate().fadeIn(delay: 400.ms),
           
           const SizedBox(height: 32),
@@ -462,6 +506,139 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.3),
         ],
       ),
+    );
+  }
+
+  Widget _buildEmptyFilteredOrders(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Active filters indicator (for empty filtered state)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.lightGreen.shade50,
+            border: const Border(bottom: BorderSide(color: Colors.green, width: 1)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.filter_alt, size: 18, color: Colors.green),
+              const SizedBox(width: 8),
+              const Text(
+                'Active filters:',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (_selectedTimeFilter != 'All')
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Chip(
+                            label: Text(
+                              _selectedTimeFilter,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            backgroundColor: Colors.lightGreen.shade100,
+                            deleteIcon: const Icon(Icons.close, size: 16),
+                            onDeleted: () {
+                              setState(() {
+                                _selectedTimeFilter = 'All';
+                              });
+                            },
+                          ),
+                        ),
+                      if (_selectedStatusFilter != null)
+                        Chip(
+                          label: Text(
+                            _selectedStatusFilter!,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          backgroundColor: Colors.lightGreen.shade100,
+                          deleteIcon: const Icon(Icons.close, size: 16),
+                          onDeleted: () {
+                            setState(() {
+                              _selectedStatusFilter = null;
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _selectedTimeFilter = 'All';
+                    _selectedStatusFilter = null;
+                  });
+                },
+                child: const Text(
+                  'Clear all',
+                  style: TextStyle(color: Colors.green),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Empty state content
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.search_off_rounded,
+                  size: 100,
+                  color: Colors.lightGreen.shade300,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'No orders found',
+                  style: TextStyle(
+                    color: Colors.lightGreen.shade700,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                  child: Text(
+                    'No orders match your current filters',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedTimeFilter = 'All';
+                      _selectedStatusFilter = null;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.lightGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Clear Filters'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
