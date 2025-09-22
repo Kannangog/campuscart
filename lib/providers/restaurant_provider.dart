@@ -70,11 +70,25 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       final snapshot = await uploadTask;
       return await snapshot.ref.getDownloadURL();
     } catch (e) {
+      print('Error uploading image: $e');
       throw Exception('Failed to upload image: $e');
     }
   }
 
-  Future<String> createRestaurant(RestaurantModel restaurant, {required String name, required String description, required String phoneNumber}) async {
+  Future<String> createRestaurant(String uid, {
+    required String name,
+    required String description,
+    required String phoneNumber,
+    required List<String> categories,
+    required String address,
+    required double latitude,
+    required double longitude,
+    required String email,
+    File? imageFile,
+    Map<String, String>? openingHours,
+    required String openingTime,
+    required String closingTime,
+  }) async {
     try {
       state = const AsyncValue.loading();
       
@@ -83,27 +97,42 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         throw Exception('User not authenticated');
       }
       
-      String restaurantId;
+      String? imageUrl;
       
-      if (restaurant.id.isEmpty) {
-        restaurantId = generateRestaurantId();
-      } else {
-        restaurantId = restaurant.id;
+      // Upload image if provided
+      if (imageFile != null) {
+        imageUrl = await uploadImage(imageFile);
       }
       
-      // Create restaurant with the correct ID
-      final restaurantWithId = restaurant.copyWith(
+      final restaurantId = generateRestaurantId();
+      
+      // Create restaurant model
+      final restaurant = RestaurantModel(
         id: restaurantId,
         ownerId: user.uid,
+        name: name,
+        description: description,
+        phoneNumber: phoneNumber,
+        imageUrl: imageUrl ?? '',
+        categories: categories,
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+        email: email,
+        isOpen: true,
+        isApproved: false,
+        openingHours: openingHours ?? {},
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        rating: 0.0,
+        totalReviews: 0,
       );
       
       // Create restaurant document
       await _firestore
           .collection('restaurants')
           .doc(restaurantId)
-          .set(restaurantWithId.toFirestore());
+          .set(restaurant.toFirestore());
       
       // Update user document with restaurantId
       await _firestore
@@ -119,13 +148,24 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       return restaurantId;
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
+      print('Error creating restaurant: $e');
       rethrow;
     }
   }
 
-  Future<void> updateRestaurant(String restaurantId, Map<String, dynamic> updates) async {
+  Future<void> updateRestaurant(
+    String restaurantId, 
+    Map<String, dynamic> updates,
+    {File? imageFile}
+  ) async {
     try {
       state = const AsyncValue.loading();
+      
+      // Upload new image if provided
+      if (imageFile != null) {
+        final imageUrl = await uploadImage(imageFile);
+        updates['imageUrl'] = imageUrl;
+      }
       
       updates['updatedAt'] = Timestamp.fromDate(DateTime.now());
       
@@ -137,6 +177,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       state = const AsyncValue.data(null);
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
+      print('Error updating restaurant: $e');
       rethrow;
     }
   }

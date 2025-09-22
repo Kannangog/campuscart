@@ -132,7 +132,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             children: [
               // Header with improved animation
               Text(
-                'Join CampusCart',
+                'Join ZoneFeast',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: lightGreen,

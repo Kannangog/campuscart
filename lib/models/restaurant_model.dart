@@ -52,7 +52,7 @@ class RestaurantModel {
     required this.updatedAt,
     required this.email,
     this.totalReviews = 0,
-    this.isFeatured = false,
+    this.isFeatured = false, String? openingTime, String? closingTime,
   });
 
   factory RestaurantModel.fromFirestore(DocumentSnapshot doc) {

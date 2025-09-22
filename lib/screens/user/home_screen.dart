@@ -192,11 +192,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   opacity: _showSearchResults ? 0 : 1,
                   duration: const Duration(milliseconds: 200),
                   child: const Text(
-                    'CampusCart',
+                    'ZoneFeast',
                     style: TextStyle(
                       color: Colors.black87,
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
+                      fontFamily: ' Lobster',
                     ),
                   ),
                 ),
@@ -328,7 +329,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Good ${_getGreeting()}${user?.displayName != null ? ', ${user?.displayName}' : ''}!',
+                        'Good ${_getGreeting()}${user?.displayName != null ? ' ${user?.displayName}' : ''}!',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
