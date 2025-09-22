@@ -35,7 +35,7 @@ class MyApp extends ConsumerWidget {
     final theme = ref.watch(themeProvider);
     
     return MaterialApp(
-      title: 'Campuscart',
+      title: 'Zonefeast',
       debugShowCheckedModeBanner: false,
       theme: theme, // Use the theme from themeProvider
       home: const AuthWrapper(),
