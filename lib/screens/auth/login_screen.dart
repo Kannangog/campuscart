@@ -75,10 +75,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.restaurant,
-                      size: 60,
-                      color: Colors.white,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: Image.asset(
+                        'assets/images/app_image.png', 
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   )
                   .animate()

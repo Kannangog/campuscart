@@ -387,190 +387,34 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 
                 const SizedBox(height: 32),
                 
-                // Two-column layout for smaller cards
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: Column(
+                // Responsive two-column layout for smaller cards
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 600) {
+                      // Desktop/tablet layout
+                      return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Top Selling Items
-                          Text(
-                            'Top Selling Items',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
-                            ),
+                          Expanded(
+                            child: _buildTopSellingItems(analyticsData),
                           ),
-                          
-                          const SizedBox(height: 16),
-                          
-                          analyticsData.topItems.isEmpty
-                              ? _buildEmptyState('No items sold yet')
-                              : Card(
-                                  elevation: 2,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      children: [
-                                        for (int i = 0; i < analyticsData.topItems.length; i++) ...[
-                                          if (i > 0) const Divider(height: 1, thickness: 0.5),
-                                          _buildTopItemRow(
-                                            analyticsData.topItems[i].name, 
-                                            analyticsData.topItems[i].quantity, 
-                                            '₹${analyticsData.topItems[i].revenue.toStringAsFixed(0)}'
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.3),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildOrderStatusDistribution(analyticsData),
+                          ),
                         ],
-                      ),
-                    ),
-                    
-                    const SizedBox(width: 16),
-                    
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      );
+                    } else {
+                      // Mobile layout
+                      return Column(
                         children: [
-                          // Order Status Distribution
-                          Text(
-                            'Order Status',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                          
-                          const SizedBox(height: 16),
-                          
-                          analyticsData.orderStatusDistribution.isEmpty
-                              ? _buildEmptyState('No orders with status data')
-                              : Card(
-                                  elevation: 2,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: Column(
-                                      children: [
-                                        SizedBox(
-                                          height: 180,
-                                          child: PieChart(
-                                            PieChartData(
-                                              sections: analyticsData.orderStatusDistribution.entries.map((e) {
-                                                final status = e.key;
-                                                final value = e.value;
-                                                final percentage = (value / analyticsData.totalOrders * 100).round();
-                                                
-                                                Color color;
-                                                switch (status) {
-                                                  case 'Delivered':
-                                                    color = Colors.green;
-                                                    break;
-                                                  case 'Preparing':
-                                                    color = Colors.orange;
-                                                    break;
-                                                  case 'Pending':
-                                                    color = Colors.blue;
-                                                    break;
-                                                  case 'Out for Delivery':
-                                                    color = Colors.purple;
-                                                    break;
-                                                  case 'Cancelled':
-                                                    color = Colors.red;
-                                                    break;
-                                                  default:
-                                                    color = Colors.grey;
-                                                }
-                                                
-                                                return PieChartSectionData(
-                                                  value: value.toDouble(),
-                                                  title: '$percentage%',
-                                                  color: color,
-                                                  radius: 60,
-                                                  titleStyle: const TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                  ),
-                                                );
-                                              }).toList(),
-                                              centerSpaceRadius: 40,
-                                              sectionsSpace: 2,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 16),
-                                        // Legend for order status
-                                        Wrap(
-                                          spacing: 12,
-                                          runSpacing: 8,
-                                          alignment: WrapAlignment.center,
-                                          children: analyticsData.orderStatusDistribution.entries.map((e) {
-                                            final status = e.key;
-                                            
-                                            Color color;
-                                            switch (status) {
-                                              case 'Delivered':
-                                                color = Colors.green;
-                                                break;
-                                              case 'Preparing':
-                                                color = Colors.orange;
-                                                break;
-                                              case 'Pending':
-                                                color = Colors.blue;
-                                              case 'Out for Delivery':
-                                                color = Colors.purple;
-                                                break;
-                                              case 'Cancelled':
-                                                color = Colors.red;
-                                                break;
-                                              default:
-                                                color = Colors.grey;
-                                            }
-                                            
-                                            return Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  width: 12,
-                                                  height: 12,
-                                                  decoration: BoxDecoration(
-                                                    color: color,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  status,
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[700],
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ).animate().fadeIn(delay: 1100.ms).slideY(begin: 0.3),
+                          _buildTopSellingItems(analyticsData),
+                          const SizedBox(height: 24),
+                          _buildOrderStatusDistribution(analyticsData),
                         ],
-                      ),
-                    ),
-                  ],
+                      );
+                    }
+                  },
                 ),
                 
                 const SizedBox(height: 32),
@@ -579,6 +423,180 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildTopSellingItems(analyticsData) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Top Selling Items',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        analyticsData.topItems.isEmpty
+            ? _buildEmptyState('No items sold yet')
+            : Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < analyticsData.topItems.length; i++) ...[
+                        if (i > 0) const Divider(height: 1, thickness: 0.5),
+                        _buildTopItemRow(
+                          analyticsData.topItems[i].name, 
+                          analyticsData.topItems[i].quantity, 
+                          '₹${analyticsData.topItems[i].revenue.toStringAsFixed(0)}'
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.3),
+      ],
+    );
+  }
+
+  Widget _buildOrderStatusDistribution(analyticsData) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Order Status',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        analyticsData.orderStatusDistribution.isEmpty
+            ? _buildEmptyState('No orders with status data')
+            : Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 180,
+                        child: PieChart(
+                          PieChartData(
+                            sections: analyticsData.orderStatusDistribution.entries.map((e) {
+                              final status = e.key;
+                              final value = e.value;
+                              final percentage = (value / analyticsData.totalOrders * 100).round();
+                              
+                              Color color;
+                              switch (status) {
+                                case 'Delivered':
+                                  color = Colors.green;
+                                  break;
+                                case 'Preparing':
+                                  color = Colors.orange;
+                                  break;
+                                case 'Pending':
+                                  color = Colors.blue;
+                                  break;
+                                case 'Out for Delivery':
+                                  color = Colors.purple;
+                                  break;
+                                case 'Cancelled':
+                                  color = Colors.red;
+                                  break;
+                                default:
+                                  color = Colors.grey;
+                              }
+                              
+                              return PieChartSectionData(
+                                value: value.toDouble(),
+                                title: '$percentage%',
+                                color: color,
+                                radius: 60,
+                                titleStyle: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              );
+                            }).toList(),
+                            centerSpaceRadius: 40,
+                            sectionsSpace: 2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Legend for order status
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: analyticsData.orderStatusDistribution.entries.map((e) {
+                          final status = e.key;
+                          
+                          Color color;
+                          switch (status) {
+                            case 'Delivered':
+                              color = Colors.green;
+                              break;
+                            case 'Preparing':
+                              color = Colors.orange;
+                              break;
+                            case 'Pending':
+                              color = Colors.blue;
+                            case 'Out for Delivery':
+                              color = Colors.purple;
+                              break;
+                            case 'Cancelled':
+                              color = Colors.red;
+                              break;
+                            default:
+                              color = Colors.grey;
+                          }
+                          
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                status,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(delay: 1100.ms).slideY(begin: 0.3),
+      ],
     );
   }
 
