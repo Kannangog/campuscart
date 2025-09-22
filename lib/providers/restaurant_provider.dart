@@ -64,13 +64,36 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
 
   Future<String> uploadImage(File imageFile) async {
     try {
-      final fileName = 'restaurants/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      // Create a unique filename with proper extension
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final extension = imageFile.path.split('.').last;
+      final fileName = 'restaurants/$timestamp.$extension';
+      
       final ref = _storage.ref().child(fileName);
-      final uploadTask = ref.putFile(imageFile);
-      final snapshot = await uploadTask;
-      return await snapshot.ref.getDownloadURL();
+      
+      // Set metadata for the upload
+      final metadata = SettableMetadata(
+        contentType: 'image/${extension == 'png' ? 'png' : 'jpeg'}',
+        cacheControl: 'public, max-age=31536000',
+      );
+      
+      // Upload the file with metadata
+      final uploadTask = ref.putFile(imageFile, metadata);
+      final snapshot = await uploadTask.whenComplete(() {});
+      
+      // Check if upload was successful
+      if (snapshot.state == TaskState.success) {
+        final downloadUrl = await snapshot.ref.getDownloadURL();
+        print('Image uploaded successfully: $downloadUrl');
+        return downloadUrl;
+      } else {
+        throw Exception('Upload failed with state: ${snapshot.state}');
+      }
+    } on FirebaseException catch (e) {
+      print('Firebase error uploading image: ${e.code} - ${e.message}');
+      throw Exception('Failed to upload image: ${e.message}');
     } catch (e) {
-      print('Error uploading image: $e');
+      print('Unexpected error uploading image: $e');
       throw Exception('Failed to upload image: $e');
     }
   }
@@ -97,11 +120,18 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         throw Exception('User not authenticated');
       }
       
+      // Validate that the current user matches the provided uid
+      if (user.uid != uid) {
+        throw Exception('User ID mismatch');
+      }
+      
       String? imageUrl;
       
       // Upload image if provided
       if (imageFile != null) {
+        print('Starting image upload...');
         imageUrl = await uploadImage(imageFile);
+        print('Image upload completed: $imageUrl');
       }
       
       final restaurantId = generateRestaurantId();
@@ -128,11 +158,15 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         totalReviews: 0,
       );
       
+      print('Creating restaurant document: $restaurantId');
+      
       // Create restaurant document
       await _firestore
           .collection('restaurants')
           .doc(restaurantId)
           .set(restaurant.toFirestore());
+      
+      print('Restaurant document created successfully');
       
       // Update user document with restaurantId
       await _firestore
@@ -143,6 +177,8 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
             'hasRestaurant': true,
             'updatedAt': Timestamp.fromDate(DateTime.now()),
           });
+      
+      print('User document updated successfully');
       
       state = const AsyncValue.data(null);
       return restaurantId;
