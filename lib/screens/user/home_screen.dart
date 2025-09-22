@@ -61,15 +61,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     },
   ];
 
+  // Updated categories to match menu management screen exactly
   final List<Map<String, dynamic>> _categories = [
+    {'icon': Icons.all_inclusive, 'label': 'All', 'category': 'All'},
+    {'icon': Icons.eco, 'label': 'Veg', 'category': 'Veg'},
+    {'icon': Icons.set_meal, 'label': 'Non Veg', 'category': 'Non Veg'},
+    {'icon': Icons.rice_bowl, 'label': 'Briyani', 'category': 'Briyani'},
+    {'icon': Icons.soup_kitchen, 'label': 'Curries', 'category': 'Curries'},
+    {'icon': Icons.bakery_dining, 'label': 'Rotis', 'category': 'Rotis'},
+    {'icon': Icons.lunch_dining, 'label': 'Meal', 'category': 'Meal'},
     {'icon': Icons.local_pizza, 'label': 'Pizza', 'category': 'Pizza'},
     {'icon': Icons.fastfood, 'label': 'Burger', 'category': 'Burger'},
-    {'icon': Icons.rice_bowl, 'label': 'Biryani', 'category': 'Biryani'},
     {'icon': Icons.breakfast_dining, 'label': 'Breakfast', 'category': 'Breakfast'},
-    {'icon': Icons.lunch_dining, 'label': 'Lunch', 'category': 'Lunch'},
     {'icon': Icons.cake, 'label': 'Desserts', 'category': 'Desserts'},
-    {'icon': Icons.local_cafe, 'label': 'Beverages', 'category': 'Beverages'},
-    {'icon': Icons.icecream, 'label': 'Ice Cream', 'category': 'Ice Cream'},
   ];
 
   String _selectedCategory = 'All';
@@ -1278,6 +1282,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       Colors.pink.shade600,
       Colors.teal.shade600,
       Colors.indigo.shade600,
+      Colors.brown.shade600,
+      Colors.cyan.shade600,
+      Colors.deepOrange.shade600,
     ];
     return colors[index % colors.length];
   }

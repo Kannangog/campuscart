@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/menu_item_model.dart';
 
 // Provider that fetches ALL menu items (used in home screen search)
@@ -129,15 +132,37 @@ final menuItemsByCategoryProvider = StreamProvider.autoDispose.family<List<MenuI
           .toList());
 });
 
+// Image upload provider
+final imageUploadProvider = FutureProvider.autoDispose.family<String, File>((ref, imageFile) async {
+  try {
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('menu_images/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}');
+    
+    final uploadTask = storageRef.putFile(imageFile);
+    final snapshot = await uploadTask;
+    
+    if (snapshot.state == TaskState.success) {
+      return await storageRef.getDownloadURL();
+    } else {
+      throw Exception('Failed to upload image: ${snapshot.state}');
+    }
+  } catch (e) {
+    throw Exception('Image upload failed: $e');
+  }
+});
+
 // Fixed menu management provider with proper disposal handling
 final menuManagementProvider = StateNotifierProvider.autoDispose<MenuManagementNotifier, AsyncValue<void>>((ref) {
-  return MenuManagementNotifier();
+  return MenuManagementNotifier(ref);
 });
 
 class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
-  MenuManagementNotifier() : super(const AsyncValue.data(null));
+  final Ref ref;
+  MenuManagementNotifier(this.ref) : super(const AsyncValue.data(null));
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   bool _isDisposed = false;
 
   @override
@@ -153,14 +178,51 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> addMenuItem(MenuItemModel menuItem) async {
+  Future<String> _uploadImage(File imageFile) async {
+    try {
+      _checkIfDisposed();
+      
+      final storageRef = _storage
+          .ref()
+          .child('menu_images/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}');
+      
+      final uploadTask = storageRef.putFile(
+        imageFile,
+        SettableMetadata(
+          contentType: 'image/jpeg',
+        ),
+      );
+      
+      final snapshot = await uploadTask;
+      
+      if (snapshot.state == TaskState.success) {
+        return await storageRef.getDownloadURL();
+      } else {
+        throw Exception('Failed to upload image: ${snapshot.state}');
+      }
+    } catch (e) {
+      throw Exception('Image upload failed: $e');
+    }
+  }
+
+  Future<void> addMenuItem(MenuItemModel menuItem, {File? imageFile}) async {
     try {
       _checkIfDisposed();
       state = const AsyncValue.loading();
       
+      String imageUrl = menuItem.imageUrl;
+      
+      // Upload image if provided
+      if (imageFile != null) {
+        imageUrl = await _uploadImage(imageFile);
+      }
+      
+      // Create menu item with updated image URL
+      final menuItemWithImage = menuItem.copyWith(imageUrl: imageUrl, id: '', createdAt: DateTime.now());
+      
       await _firestore
           .collection('menuItems')
-          .add(menuItem.toFirestore());
+          .add(menuItemWithImage.toFirestore());
       
       if (!_isDisposed) {
         state = const AsyncValue.data(null);
@@ -173,12 +235,24 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> updateMenuItem(String menuItemId, Map<String, dynamic> updates) async {
+  Future<void> updateMenuItem(
+    String menuItemId, 
+    Map<String, dynamic> updates, 
+    {File? imageFile}
+  ) async {
     try {
       _checkIfDisposed();
       state = const AsyncValue.loading();
       
       final updatedUpdates = Map<String, dynamic>.from(updates);
+      
+      // Upload new image if provided
+      if (imageFile != null) {
+        final imageUrl = await _uploadImage(imageFile);
+        updatedUpdates['imageUrl'] = imageUrl;
+      }
+      
+      // Convert DateTime to Timestamp
       if (updatedUpdates.containsKey('updatedAt') && updatedUpdates['updatedAt'] is DateTime) {
         updatedUpdates['updatedAt'] = Timestamp.fromDate(updatedUpdates['updatedAt']);
       }
@@ -203,6 +277,21 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       _checkIfDisposed();
       state = const AsyncValue.loading();
+      
+      // Optional: Delete associated image from storage
+      final doc = await _firestore.collection('menuItems').doc(menuItemId).get();
+      if (doc.exists) {
+        final menuItem = MenuItemModel.fromFirestore(doc);
+        if (menuItem.imageUrl.isNotEmpty && menuItem.imageUrl.contains('firebasestorage')) {
+          try {
+            final imageRef = _storage.refFromURL(menuItem.imageUrl);
+            await imageRef.delete();
+          } catch (e) {
+            print('Error deleting image from storage: $e');
+            // Continue with menu item deletion even if image deletion fails
+          }
+        }
+      }
       
       await _firestore
           .collection('menuItems')
@@ -315,5 +404,46 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
     } catch (e) {
       rethrow;
     }
+  }
+}
+
+// Helper extension for MenuItemModel copyWith method
+extension MenuItemModelExtension on MenuItemModel {
+  MenuItemModel copyWith({
+    String? id,
+    String? restaurantId,
+    String? name,
+    String? description,
+    double? price,
+    double? specialOfferPrice,
+    String? imageUrl,
+    String? category,
+    bool? isVegetarian,
+    bool? isVegan,
+    bool? isSpicy,
+    bool? isTodaysSpecial,
+    bool? isAvailable,
+    int? orderCount,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return MenuItemModel(
+      id: id ?? this.id,
+      restaurantId: restaurantId ?? this.restaurantId,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      price: price ?? this.price,
+      specialOfferPrice: specialOfferPrice ?? this.specialOfferPrice,
+      imageUrl: imageUrl ?? this.imageUrl,
+      category: category ?? this.category,
+      isVegetarian: isVegetarian ?? this.isVegetarian,
+      isVegan: isVegan ?? this.isVegan,
+      isSpicy: isSpicy ?? this.isSpicy,
+      isTodaysSpecial: isTodaysSpecial ?? this.isTodaysSpecial,
+      isAvailable: isAvailable ?? this.isAvailable,
+      orderCount: orderCount ?? this.orderCount,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }

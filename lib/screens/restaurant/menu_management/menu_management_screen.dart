@@ -18,7 +18,7 @@ class MenuManagementScreen extends ConsumerStatefulWidget {
 
 class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
   String _selectedCategory = 'All';
-  final List<String> _categories = ['All', 'Appetizers', 'Main Course', 'Desserts', 'Beverages'];
+  final List<String> _categories = ['All', 'Veg', 'Non Veg', 'Briyani', 'Curries', 'Rotis', 'Meal', 'Pizza', 'Burger', 'Breakfast', 'Desserts'];
   bool _showTodaysSpecialOnly = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -71,7 +71,7 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
         }
         
         final restaurant = restaurantList.first;
-        // FIXED: Use allMenuItemsProvider instead of menuItemsProvider to see ALL items
+        // Use allMenuItemsProvider to see ALL items
         final menuItems = ref.watch(allMenuItemsProvider(restaurant.id));
         
         return Scaffold(
@@ -331,9 +331,19 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                       filteredItems = filteredItems.where((item) => item.isTodaysSpecial).toList();
                     }
                     
-                    // Filter by category
+                    // Filter by category - FIXED: Proper category filtering
                     if (_selectedCategory != 'All') {
-                      filteredItems = filteredItems.where((item) => item.category == _selectedCategory).toList();
+                      // Handle special cases for Veg/Non Veg filtering
+                      if (_selectedCategory == 'Veg') {
+                        filteredItems = filteredItems.where((item) => item.isVegetarian).toList();
+                      } else if (_selectedCategory == 'Non Veg') {
+                        filteredItems = filteredItems.where((item) => !item.isVegetarian).toList();
+                      } else {
+                        // Filter by regular category
+                        filteredItems = filteredItems.where((item) => 
+                          item.category.toLowerCase() == _selectedCategory.toLowerCase()
+                        ).toList();
+                      }
                     }
                     
                     if (filteredItems.isEmpty) {
@@ -546,7 +556,9 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
                     ? 'No items found for "$_searchQuery"'
                     : _showTodaysSpecialOnly
                         ? 'No items marked as "Today\'s Special"'
-                        : 'Add your first menu item to get started',
+                        : _selectedCategory != 'All'
+                            ? 'No items found in "$_selectedCategory" category'
+                            : 'Add your first menu item to get started',
                 style: TextStyle(
                   color: Colors.lightGreen[600],
                   fontSize: 15,
@@ -557,7 +569,7 @@ class _MenuManagementScreenState extends ConsumerState<MenuManagementScreen> {
             
             const SizedBox(height: 32),
             
-            if (_searchQuery.isEmpty && !_showTodaysSpecialOnly)
+            if (_searchQuery.isEmpty && !_showTodaysSpecialOnly && _selectedCategory == 'All')
               ElevatedButton(
                 onPressed: () => showAddItemDialog(context, ref, restaurantId),
                 style: ElevatedButton.styleFrom(

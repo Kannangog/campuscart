@@ -10,27 +10,28 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../../../../providers/menu_provider.dart';
 import '../../../../models/menu_item_model.dart';
 
+// Use immutable state with freezed or manual implementation
 class MenuDialogState {
   final TextEditingController nameController;
   final TextEditingController descriptionController;
   final TextEditingController priceController;
   final TextEditingController specialOfferController;
-  String selectedCategory;
-  bool isVegetarian;
-  bool isVegan;
-  bool isSpicy;
-  bool isTodaysSpecial;
-  bool hasSpecialOffer;
-  String imageUrl;
-  File? selectedImage;
-  bool isUploading;
+  final String selectedCategory;
+  final bool isVegetarian;
+  final bool isVegan;
+  final bool isSpicy;
+  final bool isTodaysSpecial;
+  final bool hasSpecialOffer;
+  final String imageUrl;
+  final File? selectedImage;
+  final bool isUploading;
 
   MenuDialogState({
     required this.nameController,
     required this.descriptionController,
     required this.priceController,
     required this.specialOfferController,
-    this.selectedCategory = 'Main Course',
+    this.selectedCategory = 'briyani',
     this.isVegetarian = true,
     this.isVegan = false,
     this.isSpicy = false,
@@ -81,6 +82,62 @@ class MenuDialogState {
   }
 }
 
+// Category color mapping function
+Map<String, Color> getCategoryColor(String category) {
+  final colors = {
+    'briyani': Colors.orange,
+    'chinese': Colors.red,
+    'curries': Colors.green,
+    'rotis': Colors.amber,
+    'meal': Colors.brown,
+    'pizza': Colors.purple,
+    'burger': Colors.deepOrange,
+    'breakfast': Colors.blue,
+    'desserts': Colors.pink,
+  };
+  
+  final lowerCategory = category.toLowerCase();
+  return {
+    'color': colors[lowerCategory] ?? Colors.grey,
+    'lightColor': colors[lowerCategory]?.withOpacity(0.1) ?? Colors.grey.withOpacity(0.1),
+  };
+}
+
+// Enhanced category mapping with better matching
+String getCategoryDisplayName(String category) {
+  final names = {
+    'briyani': 'Briyani', 'biriyani': 'Briyani', 'biriani': 'Briyani', 'biryani': 'Briyani',
+    'chinese': 'Chinese', 'china': 'Chinese',
+    'curries': 'Curries', 'curry': 'Curries',
+    'rotis': 'Rotis', 'roti': 'Rotis', 'naan': 'Rotis', 'bread': 'Rotis',
+    'meal': 'Meal', 'thali': 'Meal', 'combo': 'Meal',
+    'pizza': 'Pizza', 'pizzas': 'Pizza',
+    'burger': 'Burger', 'burgers': 'Burger',
+    'breakfast': 'Breakfast', 'morning': 'Breakfast',
+    'desserts': 'Desserts', 'dessert': 'Desserts', 'sweet': 'Desserts',
+  };
+  
+  String normalized = category.toLowerCase().trim();
+  
+  // Try exact match first
+  if (names.containsKey(normalized)) {
+    return names[normalized]!;
+  }
+  
+  // Try partial match
+  for (var key in names.keys) {
+    if (normalized.contains(key) || key.contains(normalized)) {
+      return names[key]!;
+    }
+  }
+  
+  // Fallback: capitalize first letter of each word
+  return category.split(' ').map((word) {
+    if (word.isEmpty) return '';
+    return word[0].toUpperCase() + word.substring(1).toLowerCase();
+  }).join(' ');
+}
+
 // Create a StatefulWidget to properly manage the state
 class MenuDialog extends ConsumerStatefulWidget {
   final String restaurantId;
@@ -98,10 +155,48 @@ class MenuDialog extends ConsumerStatefulWidget {
 
 class _MenuDialogState extends ConsumerState<MenuDialog> {
   late MenuDialogState _state;
+  final List<String> _categories = [
+    'briyani',
+    'chinese',
+    'curries',
+    'rotis',
+    'meal',
+    'pizza',
+    'burger',
+    'breakfast',
+    'desserts'
+  ];
 
   @override
   void initState() {
     super.initState();
+    
+    // Normalize the category from the item
+    String initialCategory = widget.item?.category ?? 'briyani';
+    String normalizedCategory = initialCategory.toLowerCase().trim();
+    
+    // Map to our standard categories
+    final categoryMap = {
+      'briyani': 'briyani', 'biriyani': 'briyani', 'biriani': 'briyani', 'biryani': 'briyani',
+      'chinese': 'chinese', 'china': 'chinese',
+      'curries': 'curries', 'curry': 'curries',
+      'rotis': 'rotis', 'roti': 'rotis', 'naan': 'rotis', 'bread': 'rotis',
+      'meal': 'meal', 'thali': 'meal', 'combo': 'meal',
+      'pizza': 'pizza', 'pizzas': 'pizza',
+      'burger': 'burger', 'burgers': 'burger',
+      'breakfast': 'breakfast', 'morning': 'breakfast',
+      'desserts': 'desserts', 'dessert': 'desserts', 'sweet': 'desserts',
+    };
+    
+    // Find the matching category
+    String finalCategory = 'briyani'; // default
+    for (var key in categoryMap.keys) {
+      if (normalizedCategory == key || normalizedCategory.contains(key)) {
+        finalCategory = categoryMap[key]!;
+        break;
+      }
+    }
+    
     _state = MenuDialogState(
       nameController: TextEditingController(text: widget.item?.name ?? ''),
       descriptionController: TextEditingController(text: widget.item?.description ?? ''),
@@ -109,7 +204,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
       specialOfferController: TextEditingController(
         text: widget.item?.specialOfferPrice?.toString() ?? '',
       ),
-      selectedCategory: widget.item?.category ?? 'Main Course',
+      selectedCategory: finalCategory,
       isVegetarian: widget.item?.isVegetarian ?? true,
       isVegan: widget.item?.isVegan ?? false,
       isSpicy: widget.item?.isSpicy ?? false,
@@ -125,8 +220,178 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
     super.dispose();
   }
 
-  void _updateState(void Function() updateFn) {
-    setState(updateFn);
+  // Helper method to update state properly
+  void _updateState(MenuDialogState newState) {
+    if (mounted) {
+      setState(() {
+        _state = newState;
+      });
+    }
+  }
+
+  Future<String?> _uploadImage(File imageFile) async {
+    try {
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('menu_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
+      
+      final uploadTask = storageRef.putFile(imageFile);
+      final snapshot = await uploadTask;
+      
+      if (snapshot.state == TaskState.success) {
+        return await storageRef.getDownloadURL();
+      } else {
+        throw Exception('Failed to upload image');
+      }
+    } catch (e) {
+      print('Image upload error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _saveMenuItem() async {
+    if (_state.nameController.text.trim().isEmpty ||
+        _state.descriptionController.text.trim().isEmpty ||
+        _state.priceController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please fill all required fields'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final price = double.parse(_state.priceController.text.trim());
+      double? specialOfferPrice;
+      
+      if (_state.hasSpecialOffer && _state.specialOfferController.text.isNotEmpty) {
+        specialOfferPrice = double.parse(_state.specialOfferController.text.trim());
+        if (specialOfferPrice >= price) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Special offer price must be less than regular price'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+          return;
+        }
+      }
+      
+      String finalImageUrl = _state.imageUrl;
+      
+      // Upload new image if selected
+      if (_state.selectedImage != null) {
+        _updateState(_state.copyWith(isUploading: true));
+        
+        try {
+          finalImageUrl = await _uploadImage(_state.selectedImage!) ?? _state.imageUrl;
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload image: $e'),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+          _updateState(_state.copyWith(isUploading: false));
+          return;
+        }
+        
+        _updateState(_state.copyWith(isUploading: false));
+      }
+      
+      // Use default image if no image is provided
+      if (finalImageUrl.isEmpty) {
+        finalImageUrl = 'https://via.placeholder.com/300x200?text=Food+Image';
+      }
+      
+      if (widget.item == null) {
+        // Add new item
+        final newItem = MenuItemModel(
+          id: '', // Will be set by Firestore
+          restaurantId: widget.restaurantId,
+          name: _state.nameController.text.trim(),
+          description: _state.descriptionController.text.trim(),
+          price: price,
+          specialOfferPrice: specialOfferPrice,
+          imageUrl: finalImageUrl,
+          category: _state.selectedCategory,
+          isVegetarian: _state.isVegetarian,
+          isVegan: _state.isVegan,
+          isSpicy: _state.isSpicy,
+          isTodaysSpecial: _state.isTodaysSpecial,
+          isAvailable: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        
+        await ref.read(menuManagementProvider.notifier).addMenuItem(newItem);
+      } else {
+        // Update existing item
+        await ref.read(menuManagementProvider.notifier).updateMenuItem(
+          widget.item!.id,
+          {
+            'name': _state.nameController.text.trim(),
+            'description': _state.descriptionController.text.trim(),
+            'price': price,
+            'specialOfferPrice': specialOfferPrice,
+            'category': _state.selectedCategory,
+            'isVegetarian': _state.isVegetarian,
+            'isVegan': _state.isVegan,
+            'isSpicy': _state.isSpicy,
+            'isTodaysSpecial': _state.isTodaysSpecial,
+            'imageUrl': finalImageUrl,
+            'updatedAt': DateTime.now(),
+          },
+        );
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.item == null 
+                ? 'Menu item added successfully!' 
+                : 'Menu item updated successfully!'),
+            backgroundColor: Colors.lightGreen[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      _updateState(_state.copyWith(isUploading: false));
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -239,9 +504,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                         style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
                       value: _state.hasSpecialOffer,
                       onChanged: (value) {
-                        _updateState(() {
-                          _state.hasSpecialOffer = value ?? false;
-                        });
+                        _updateState(_state.copyWith(hasSpecialOffer: value ?? false));
                       },
                       activeColor: lightGreenTheme.colorScheme.primary,
                       contentPadding: EdgeInsets.zero,
@@ -284,19 +547,55 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                     borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
                   ),
                 ),
-                items: ['Appetizers', 'Main Course', 'Desserts', 'Beverages'].map((category) {
+                items: _categories.map((category) {
+                  final categoryColors = getCategoryColor(category);
                   return DropdownMenuItem(
                     value: category,
-                    child: Text(category),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: categoryColors['color'],
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(getCategoryDisplayName(category)),
+                      ],
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
-                  _updateState(() {
-                    _state.selectedCategory = value!;
-                  });
+                  if (value != null) {
+                    _updateState(_state.copyWith(selectedCategory: value));
+                  }
                 },
                 dropdownColor: lightGreenTheme.colorScheme.surfaceVariant,
               ),
+              const SizedBox(height: 16),
+              
+              // Category Preview Tag
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: lightGreenTheme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Category Preview: ', 
+                      style: TextStyle(
+                        color: lightGreenTheme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      )),
+                    _buildCategoryPreviewTag(_state.selectedCategory),
+                  ],
+                ),
+              ),
+              
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -308,13 +607,13 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                         )),
                       selected: _state.isVegetarian,
                       onSelected: (value) {
-                        _updateState(() {
-                          _state.isVegetarian = value;
-                          if (value) _state.isVegan = false;
-                        });
+                        _updateState(_state.copyWith(
+                          isVegetarian: value,
+                          isVegan: value ? _state.isVegan : false,
+                        ));
                       },
                       backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
-                      selectedColor: Colors.lightGreen[700],
+                      selectedColor: Colors.green,
                       checkmarkColor: Colors.white,
                     ),
                   ),
@@ -327,13 +626,13 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                         )),
                       selected: !_state.isVegetarian,
                       onSelected: (value) {
-                        _updateState(() {
-                          _state.isVegetarian = !value;
-                          if (value) _state.isVegan = false;
-                        });
+                        _updateState(_state.copyWith(
+                          isVegetarian: !value,
+                          isVegan: false,
+                        ));
                       },
                       backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
-                      selectedColor: Colors.brown,
+                      selectedColor: Colors.red,
                       checkmarkColor: Colors.white,
                     ),
                   ),
@@ -351,10 +650,10 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                       )),
                     selected: _state.isVegan,
                     onSelected: (value) {
-                      _updateState(() {
-                        _state.isVegan = value;
-                        if (value) _state.isVegetarian = true;
-                      });
+                      _updateState(_state.copyWith(
+                        isVegan: value,
+                        isVegetarian: value ? true : _state.isVegetarian,
+                      ));
                     },
                     backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
                     selectedColor: Colors.lightGreen[700],
@@ -367,9 +666,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                       )),
                     selected: _state.isSpicy,
                     onSelected: (value) {
-                      _updateState(() {
-                        _state.isSpicy = value;
-                      });
+                      _updateState(_state.copyWith(isSpicy: value));
                     },
                     backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
                     selectedColor: Colors.orange[700],
@@ -383,11 +680,9 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                   style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
                 value: _state.isTodaysSpecial,
                 onChanged: (value) {
-                  _updateState(() {
-                    _state.isTodaysSpecial = value ?? false;
-                  });
+                  _updateState(_state.copyWith(isTodaysSpecial: value ?? false));
                 },
-                activeColor: Colors.lightGreen[700],
+                activeColor: Colors.purple[700],
                 contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 16),
@@ -396,10 +691,10 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                   final picker = ImagePicker();
                   final pickedFile = await picker.pickImage(source: ImageSource.gallery);
                   if (pickedFile != null) {
-                    _updateState(() {
-                      _state.selectedImage = File(pickedFile.path);
-                      _state.imageUrl = ''; // Clear the URL if we're using a new image
-                    });
+                    _updateState(_state.copyWith(
+                      selectedImage: File(pickedFile.path),
+                      imageUrl: '', // Clear the URL if we're using a new image
+                    ));
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -420,142 +715,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
               style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
           ),
           ElevatedButton(
-            onPressed: _state.isUploading ? null : () async {
-              if (_state.nameController.text.trim().isEmpty ||
-                  _state.descriptionController.text.trim().isEmpty ||
-                  _state.priceController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Please fill all required fields'),
-                    backgroundColor: Colors.red,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              try {
-                final price = double.parse(_state.priceController.text.trim());
-                double? specialOfferPrice;
-                
-                if (_state.hasSpecialOffer && _state.specialOfferController.text.isNotEmpty) {
-                  specialOfferPrice = double.parse(_state.specialOfferController.text.trim());
-                  if (specialOfferPrice >= price) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Special offer price must be less than regular price'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                }
-                
-                String finalImageUrl = _state.imageUrl;
-                
-                // Upload new image if selected
-                if (_state.selectedImage != null) {
-                  _updateState(() {
-                    _state.isUploading = true;
-                  });
-                  
-                  // Upload to Firebase Storage
-                  final storageRef = FirebaseStorage.instance
-                      .ref()
-                      .child('menu_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-                  
-                  await storageRef.putFile(_state.selectedImage!);
-                  finalImageUrl = await storageRef.getDownloadURL();
-                  
-                  _updateState(() {
-                    _state.isUploading = false;
-                  });
-                }
-                
-                if (widget.item == null) {
-                  // Add new item
-                  final newItem = MenuItemModel(
-                    id: '', // Will be set by Firestore
-                    restaurantId: widget.restaurantId,
-                    name: _state.nameController.text.trim(),
-                    description: _state.descriptionController.text.trim(),
-                    price: price,
-                    specialOfferPrice: specialOfferPrice,
-                    imageUrl: finalImageUrl.isEmpty 
-                        ? 'https://via.placeholder.com/300x200?text=Food+Image'
-                        : finalImageUrl,
-                    category: _state.selectedCategory,
-                    isVegetarian: _state.isVegetarian,
-                    isVegan: _state.isVegan,
-                    isSpicy: _state.isSpicy,
-                    isTodaysSpecial: _state.isTodaysSpecial,
-                    isAvailable: true,
-                    createdAt: DateTime.now(),
-                    updatedAt: DateTime.now(),
-                  );
-                  
-                  await ref.read(menuManagementProvider.notifier).addMenuItem(newItem);
-                } else {
-                  // Update existing item
-                  await ref.read(menuManagementProvider.notifier).updateMenuItem(
-                    widget.item!.id,
-                    {
-                      'name': _state.nameController.text.trim(),
-                      'description': _state.descriptionController.text.trim(),
-                      'price': price,
-                      'specialOfferPrice': specialOfferPrice,
-                      'category': _state.selectedCategory,
-                      'isVegetarian': _state.isVegetarian,
-                      'isVegan': _state.isVegan,
-                      'isSpicy': _state.isSpicy,
-                      'isTodaysSpecial': _state.isTodaysSpecial,
-                      'imageUrl': finalImageUrl,
-                      'updatedAt': DateTime.now(),
-                    },
-                  );
-                }
-
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(widget.item == null 
-                          ? 'Menu item added successfully!' 
-                          : 'Menu item updated successfully!'),
-                      backgroundColor: Colors.lightGreen[700],
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  );
-                }
-              } catch (e) {
-                _updateState(() {
-                  _state.isUploading = false;
-                });
-                
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: _state.isUploading ? null : _saveMenuItem,
             style: ElevatedButton.styleFrom(
               backgroundColor: lightGreenTheme.colorScheme.primary,
               foregroundColor: Colors.white,
@@ -570,6 +730,43 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                     ),
                   )
                 : Text(widget.item == null ? 'Add' : 'Update'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryPreviewTag(String category) {
+    final categoryColors = getCategoryColor(category);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: categoryColors['lightColor'],
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: categoryColors['color']!.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: categoryColors['color'],
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            getCategoryDisplayName(category),
+            style: TextStyle(
+              color: categoryColors['color'],
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),

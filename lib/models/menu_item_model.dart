@@ -176,7 +176,7 @@ class MenuItemModel {
     DateTime? updatedAt,
     String? restaurantImage,
     String? restaurantName,
-    List<Review>? reviews,
+    List<Review>? reviews, required String id, required DateTime createdAt,
   }) {
     return MenuItemModel(
       id: id,
