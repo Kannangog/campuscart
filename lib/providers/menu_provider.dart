@@ -132,27 +132,7 @@ final menuItemsByCategoryProvider = StreamProvider.autoDispose.family<List<MenuI
           .toList());
 });
 
-// Image upload provider
-final imageUploadProvider = FutureProvider.autoDispose.family<String, File>((ref, imageFile) async {
-  try {
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('menu_images/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}');
-    
-    final uploadTask = storageRef.putFile(imageFile);
-    final snapshot = await uploadTask;
-    
-    if (snapshot.state == TaskState.success) {
-      return await storageRef.getDownloadURL();
-    } else {
-      throw Exception('Failed to upload image: ${snapshot.state}');
-    }
-  } catch (e) {
-    throw Exception('Image upload failed: $e');
-  }
-});
-
-// Fixed menu management provider with proper disposal handling
+// Fixed menu management provider with proper image handling
 final menuManagementProvider = StateNotifierProvider.autoDispose<MenuManagementNotifier, AsyncValue<void>>((ref) {
   return MenuManagementNotifier(ref);
 });
@@ -171,69 +151,91 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
     super.dispose();
   }
 
-  // Helper method to check if notifier is disposed before performing operations
   void _checkIfDisposed() {
     if (_isDisposed) {
       throw StateError('MenuManagementNotifier has been disposed');
     }
   }
 
-  Future<String> _uploadImage(File imageFile) async {
-    try {
-      _checkIfDisposed();
-      
-      final storageRef = _storage
-          .ref()
-          .child('menu_images/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}');
-      
-      final uploadTask = storageRef.putFile(
-        imageFile,
-        SettableMetadata(
-          contentType: 'image/jpeg',
-        ),
-      );
-      
-      final snapshot = await uploadTask;
-      
-      if (snapshot.state == TaskState.success) {
-        return await storageRef.getDownloadURL();
-      } else {
-        throw Exception('Failed to upload image: ${snapshot.state}');
-      }
-    } catch (e) {
-      throw Exception('Image upload failed: $e');
+Future<String> _uploadImage(File imageFile) async {
+  try {
+    _checkIfDisposed();
+    
+    // Create unique filename with timestamp
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${timestamp}_${imageFile.path.split('/').last}';
+    
+    // FIXED: Use restaurants path to match your rules
+    final storageRef = _storage.ref().child('restaurants/menu_images/$fileName');
+    
+    final uploadTask = storageRef.putFile(
+      imageFile,
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
+    
+    final snapshot = await uploadTask;
+    
+    if (snapshot.state == TaskState.success) {
+      final downloadUrl = await storageRef.getDownloadURL();
+      return downloadUrl;
+    } else {
+      throw Exception('Failed to upload image: ${snapshot.state}');
     }
+  } on FirebaseException catch (e) {
+    throw Exception('Firebase storage error: ${e.code} - ${e.message}');
+  } catch (e) {
+    throw Exception('Image upload failed: $e');
   }
+}
 
-  Future<void> addMenuItem(MenuItemModel menuItem, {File? imageFile}) async {
-    try {
-      _checkIfDisposed();
-      state = const AsyncValue.loading();
-      
-      String imageUrl = menuItem.imageUrl;
-      
-      // Upload image if provided
-      if (imageFile != null) {
-        imageUrl = await _uploadImage(imageFile);
-      }
-      
-      // Create menu item with updated image URL
-      final menuItemWithImage = menuItem.copyWith(imageUrl: imageUrl, id: '', createdAt: DateTime.now());
-      
-      await _firestore
-          .collection('menuItems')
-          .add(menuItemWithImage.toFirestore());
-      
-      if (!_isDisposed) {
-        state = const AsyncValue.data(null);
-      }
-    } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        state = AsyncValue.error(e, stackTrace);
-      }
-      rethrow;
+Future<void> addMenuItem(MenuItemModel menuItem, {File? imageFile}) async {
+  try {
+    _checkIfDisposed();
+    state = const AsyncValue.loading();
+    
+    String imageUrl = menuItem.imageUrl;
+    
+    // Upload image if provided
+    if (imageFile != null) {
+      imageUrl = await _uploadImage(imageFile);
     }
+    
+    // Use default image if no image is provided
+    if (imageUrl.isEmpty) {
+      imageUrl = 'https://via.placeholder.com/300x200?text=Food+Image';
+    }
+    
+    // FIXED: Create menu item with updated image URL - only update necessary fields
+    final menuItemWithImage = menuItem.copyWith(
+      imageUrl: imageUrl,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      // Don't set id here - let Firestore generate it
+    );
+    
+    // Let Firestore generate the ID automatically
+    final docRef = await _firestore
+        .collection('menuItems')
+        .add(menuItemWithImage.toFirestore());
+    
+    // Update the document with the generated ID
+    await docRef.update({'id': docRef.id});
+    
+    if (!_isDisposed) {
+      state = const AsyncValue.data(null);
+    }
+  } on FirebaseException catch (e, stackTrace) {
+    if (!_isDisposed) {
+      state = AsyncValue.error(e, stackTrace);
+    }
+    throw Exception('Firestore error: ${e.code} - ${e.message}');
+  } catch (e, stackTrace) {
+    if (!_isDisposed) {
+      state = AsyncValue.error(e, stackTrace);
+    }
+    rethrow;
   }
+}
 
   Future<void> updateMenuItem(
     String menuItemId, 
@@ -252,10 +254,8 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
         updatedUpdates['imageUrl'] = imageUrl;
       }
       
-      // Convert DateTime to Timestamp
-      if (updatedUpdates.containsKey('updatedAt') && updatedUpdates['updatedAt'] is DateTime) {
-        updatedUpdates['updatedAt'] = Timestamp.fromDate(updatedUpdates['updatedAt']);
-      }
+      // Always update the updatedAt timestamp
+      updatedUpdates['updatedAt'] = Timestamp.fromDate(DateTime.now());
       
       await _firestore
           .collection('menuItems')
@@ -265,6 +265,11 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
       if (!_isDisposed) {
         state = const AsyncValue.data(null);
       }
+    } on FirebaseException catch (e, stackTrace) {
+      if (!_isDisposed) {
+        state = AsyncValue.error(e, stackTrace);
+      }
+      throw Exception('Firestore error: ${e.code} - ${e.message}');
     } catch (e, stackTrace) {
       if (!_isDisposed) {
         state = AsyncValue.error(e, stackTrace);
@@ -301,6 +306,11 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
       if (!_isDisposed) {
         state = const AsyncValue.data(null);
       }
+    } on FirebaseException catch (e, stackTrace) {
+      if (!_isDisposed) {
+        state = AsyncValue.error(e, stackTrace);
+      }
+      throw Exception('Firestore error: ${e.code} - ${e.message}');
     } catch (e, stackTrace) {
       if (!_isDisposed) {
         state = AsyncValue.error(e, stackTrace);
@@ -322,6 +332,11 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
       if (!_isDisposed) {
         state = const AsyncValue.data(null);
       }
+    } on FirebaseException catch (e, stackTrace) {
+      if (!_isDisposed) {
+        state = AsyncValue.error(e, stackTrace);
+      }
+      throw Exception('Firestore error: ${e.code} - ${e.message}');
     } catch (e, stackTrace) {
       if (!_isDisposed) {
         state = AsyncValue.error(e, stackTrace);
@@ -343,6 +358,11 @@ class MenuManagementNotifier extends StateNotifier<AsyncValue<void>> {
       if (!_isDisposed) {
         state = const AsyncValue.data(null);
       }
+    } on FirebaseException catch (e, stackTrace) {
+      if (!_isDisposed) {
+        state = AsyncValue.error(e, stackTrace);
+      }
+      throw Exception('Firestore error: ${e.code} - ${e.message}');
     } catch (e, stackTrace) {
       if (!_isDisposed) {
         state = AsyncValue.error(e, stackTrace);

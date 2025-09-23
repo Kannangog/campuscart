@@ -157,6 +157,8 @@ class MenuItemModel {
   }
 
   MenuItemModel copyWith({
+    String? id,
+    String? restaurantId,
     String? name,
     String? description,
     double? price,
@@ -173,14 +175,15 @@ class MenuItemModel {
     double? rating,
     int? reviewCount,
     int? orderCount,
+    DateTime? createdAt,
     DateTime? updatedAt,
     String? restaurantImage,
     String? restaurantName,
-    List<Review>? reviews, required String id, required DateTime createdAt,
+    List<Review>? reviews,
   }) {
     return MenuItemModel(
-      id: id,
-      restaurantId: restaurantId,
+      id: id ?? this.id,
+      restaurantId: restaurantId ?? this.restaurantId,
       name: name ?? this.name,
       description: description ?? this.description,
       price: price ?? this.price,
@@ -197,7 +200,7 @@ class MenuItemModel {
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       orderCount: orderCount ?? this.orderCount,
-      createdAt: createdAt,
+      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
       restaurantImage: restaurantImage ?? this.restaurantImage,
       restaurantName: restaurantName ?? this.restaurantName,

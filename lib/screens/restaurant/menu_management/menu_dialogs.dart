@@ -229,27 +229,38 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
     }
   }
 
-  Future<String?> _uploadImage(File imageFile) async {
-    try {
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('menu_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-      
-      final uploadTask = storageRef.putFile(imageFile);
-      final snapshot = await uploadTask;
-      
-      if (snapshot.state == TaskState.success) {
-        return await storageRef.getDownloadURL();
-      } else {
-        throw Exception('Failed to upload image');
-      }
-    } catch (e) {
-      print('Image upload error: $e');
-      rethrow;
+Future<String?> _uploadImage(File imageFile) async {
+  try {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${timestamp}_${imageFile.path.split('/').last}';
+    
+    // FIXED: Use restaurants path to match your rules
+    final storageRef = FirebaseStorage.instance.ref().child('restaurants/menu_images/$fileName');
+    
+    final uploadTask = storageRef.putFile(
+      imageFile,
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
+    
+    final snapshot = await uploadTask;
+    
+    if (snapshot.state == TaskState.success) {
+      return await storageRef.getDownloadURL();
+    } else {
+      throw Exception('Failed to upload image: ${snapshot.state}');
     }
+  } on FirebaseException catch (e) {
+    throw Exception('Firebase storage error: ${e.code} - ${e.message}');
+  } catch (e) {
+    throw Exception('Image upload failed: $e');
   }
+}
 
   Future<void> _saveMenuItem() async {
+    // Check if widget is still mounted
+    if (!mounted) return;
+
+    // Validate required fields
     if (_state.nameController.text.trim().isEmpty ||
         _state.descriptionController.text.trim().isEmpty ||
         _state.priceController.text.trim().isEmpty) {
@@ -266,12 +277,35 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
       return;
     }
 
+    // Validate price format
+    double? price;
     try {
-      final price = double.parse(_state.priceController.text.trim());
-      double? specialOfferPrice;
-      
-      if (_state.hasSpecialOffer && _state.specialOfferController.text.isNotEmpty) {
+      price = double.parse(_state.priceController.text.trim());
+      if (price <= 0) {
+        throw FormatException('Price must be greater than 0');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter a valid price'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Validate special offer price
+    double? specialOfferPrice;
+    if (_state.hasSpecialOffer && _state.specialOfferController.text.isNotEmpty) {
+      try {
         specialOfferPrice = double.parse(_state.specialOfferController.text.trim());
+        if (specialOfferPrice <= 0) {
+          throw FormatException('Special offer price must be greater than 0');
+        }
         if (specialOfferPrice >= price) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -285,41 +319,57 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
           );
           return;
         }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please enter a valid special offer price'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+        return;
       }
+    }
+
+    String finalImageUrl = _state.imageUrl;
+    
+    // Upload new image if selected
+    if (_state.selectedImage != null) {
+      _updateState(_state.copyWith(isUploading: true));
       
-      String finalImageUrl = _state.imageUrl;
-      
-      // Upload new image if selected
-      if (_state.selectedImage != null) {
-        _updateState(_state.copyWith(isUploading: true));
-        
-        try {
-          finalImageUrl = await _uploadImage(_state.selectedImage!) ?? _state.imageUrl;
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to upload image: $e'),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            );
-          }
-          _updateState(_state.copyWith(isUploading: false));
-          return;
+      try {
+        final uploadedUrl = await _uploadImage(_state.selectedImage!);
+        if (uploadedUrl != null) {
+          finalImageUrl = uploadedUrl;
+        } else {
+          throw Exception('Image upload returned null URL');
         }
-        
+      } catch (e) {
+        if (!mounted) return;
         _updateState(_state.copyWith(isUploading: false));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+        return; // Don't proceed if image upload fails
       }
-      
-      // Use default image if no image is provided
-      if (finalImageUrl.isEmpty) {
-        finalImageUrl = 'https://via.placeholder.com/300x200?text=Food+Image';
-      }
-      
+    }
+    
+    // Use existing image or default if no image is available
+    if (finalImageUrl.isEmpty) {
+      finalImageUrl = 'https://via.placeholder.com/300x200?text=Food+Image';
+    }
+    
+    try {
       if (widget.item == null) {
         // Add new item
         final newItem = MenuItemModel(
@@ -336,11 +386,15 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
           isSpicy: _state.isSpicy,
           isTodaysSpecial: _state.isTodaysSpecial,
           isAvailable: true,
+          orderCount: 0,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
         
-        await ref.read(menuManagementProvider.notifier).addMenuItem(newItem);
+        await ref.read(menuManagementProvider.notifier).addMenuItem(
+          newItem, 
+          imageFile: _state.selectedImage
+        );
       } else {
         // Update existing item
         await ref.read(menuManagementProvider.notifier).updateMenuItem(
@@ -358,39 +412,40 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
             'imageUrl': finalImageUrl,
             'updatedAt': DateTime.now(),
           },
+          imageFile: _state.selectedImage,
         );
       }
 
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.item == null 
-                ? 'Menu item added successfully!' 
-                : 'Menu item updated successfully!'),
-            backgroundColor: Colors.lightGreen[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
+      if (!mounted) return;
       _updateState(_state.copyWith(isUploading: false));
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.item == null 
+              ? 'Menu item added successfully!' 
+              : 'Menu item updated successfully!'),
+          backgroundColor: Colors.lightGreen[700],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-        );
-      }
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _updateState(_state.copyWith(isUploading: false));
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving menu item: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
     }
   }
 
@@ -409,6 +464,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
     return Theme(
       data: lightGreenTheme,
       child: AlertDialog(
+        insetPadding: const EdgeInsets.all(20),
         title: Text(widget.item == null ? 'Add Menu Item' : 'Edit Menu Item',
           style: TextStyle(color: lightGreenTheme.colorScheme.primary, fontWeight: FontWeight.bold)),
         backgroundColor: lightGreenTheme.colorScheme.surface,
@@ -429,7 +485,15 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: _state.selectedImage != null
-                        ? Image.file(_state.selectedImage!, fit: BoxFit.cover)
+                        ? Image.file(_state.selectedImage!, 
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.fastfood,
+                                color: lightGreenTheme.colorScheme.primary.withOpacity(0.5),
+                                size: 50,
+                              );
+                            })
                         : CachedNetworkImage(
                             imageUrl: _state.imageUrl,
                             fit: BoxFit.cover,
@@ -448,7 +512,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
               TextField(
                 controller: _state.nameController,
                 decoration: InputDecoration(
-                  labelText: 'Item Name',
+                  labelText: 'Item Name *',
                   labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -464,7 +528,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
               TextField(
                 controller: _state.descriptionController,
                 decoration: InputDecoration(
-                  labelText: 'Description',
+                  labelText: 'Description *',
                   labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -481,7 +545,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
               TextField(
                 controller: _state.priceController,
                 decoration: InputDecoration(
-                  labelText: 'Price',
+                  labelText: 'Price *',
                   labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
                   prefixText: '₹',
                   border: OutlineInputBorder(
@@ -493,7 +557,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                     borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
                   ),
                 ),
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 16),
               Row(
@@ -527,7 +591,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                             borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
                           ),
                         ),
-                        keyboardType: TextInputType.number,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
                       ),
                     ),
                 ],
@@ -687,13 +751,18 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () async {
+                onPressed: _state.isUploading ? null : () async {
                   final picker = ImagePicker();
-                  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-                  if (pickedFile != null) {
+                  final pickedFile = await picker.pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 80,
+                    maxWidth: 1024,
+                    maxHeight: 1024,
+                  );
+                  if (pickedFile != null && mounted) {
                     _updateState(_state.copyWith(
                       selectedImage: File(pickedFile.path),
-                      imageUrl: '', // Clear the URL if we're using a new image
+                      imageUrl: _state.selectedImage != null ? '' : _state.imageUrl,
                     ));
                   }
                 },
@@ -705,12 +774,23 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
                 label: Text(_state.selectedImage != null || _state.imageUrl.isNotEmpty 
                     ? 'Change Image' : 'Add Image'),
               ),
+              if (_state.isUploading) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator()),
+                    const SizedBox(width: 12),
+                    Text('Uploading image...', 
+                      style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _state.isUploading ? null : () => Navigator.of(context).pop(),
             child: Text('Cancel', 
               style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
           ),
