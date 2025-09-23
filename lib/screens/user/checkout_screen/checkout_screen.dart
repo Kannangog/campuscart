@@ -62,7 +62,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     },
     {
       'name': 'Tungabhadra Hostel', 
-      'location': const LatLng(117.437957710758997, 76.67310340549614),
+      'location': const LatLng(17.438207207240904, 76.67327774907454),
       'mapLink': 'https://maps.app.goo.gl/deHYYMhDs8ssUBCv5',
     },
     {
