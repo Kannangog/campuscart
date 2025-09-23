@@ -296,8 +296,8 @@ class CartNotifier extends StateNotifier<CartState> {
   }
 
   double calculateTax() {
-    // 5% GST on food items
-    return state.subtotal * 0.05;
+    // Tax set to 0 by default
+    return 0.0;
   }
 
   double calculateSubtotal() {

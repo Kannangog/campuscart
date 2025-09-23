@@ -15,7 +15,7 @@ class OrderService {
     required LatLng deliveryLocation,
     required String paymentMethod,
     required dynamic orderService,
-    required String phoneNumber,
+    required String phoneNumber, String? mapLink,
   }) async {
     // Validate required fields
     if (cartState.restaurantId == null || cartState.restaurantName == null) {

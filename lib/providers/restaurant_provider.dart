@@ -50,6 +50,18 @@ final restaurantManagementProvider = StateNotifierProvider<RestaurantManagementN
   return RestaurantManagementNotifier();
 });
 
+// Add this provider to check if user has a restaurant
+final userHasRestaurantProvider = StreamProvider<bool>((ref) {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return Stream.value(false);
+  
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .snapshots()
+      .map((snapshot) => snapshot.data()?['hasRestaurant'] as bool? ?? false);
+});
+
 class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
   RestaurantManagementNotifier() : super(const AsyncValue.data(null));
 
@@ -168,15 +180,15 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       print('Restaurant document created successfully');
       
-      // Update user document with restaurantId
+      // Update user document with restaurantId - use set with merge to ensure fields exist
       await _firestore
           .collection('users')
           .doc(user.uid)
-          .update({
+          .set({
             'restaurantId': restaurantId,
             'hasRestaurant': true,
             'updatedAt': Timestamp.fromDate(DateTime.now()),
-          });
+          }, SetOptions(merge: true));
       
       print('User document updated successfully');
       
@@ -310,40 +322,49 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         throw Exception('User not authenticated');
       }
       
-      // Get references to Firestore collections
+      // Get restaurant data BEFORE deleting anything
       final restaurantDoc = _firestore.collection('restaurants').doc(restaurantId);
+      final restaurantSnapshot = await restaurantDoc.get();
+      
+      if (!restaurantSnapshot.exists) {
+        throw Exception('Restaurant not found');
+      }
+      
+      // Get the owner ID from the restaurant document (important!)
+      final restaurantData = restaurantSnapshot.data();
+      final ownerId = restaurantData != null ? restaurantData['ownerId'] as String? : null;
+      
+      // Verify the current user owns this restaurant
+      if (ownerId != user.uid) {
+        throw Exception('You do not have permission to delete this restaurant');
+      }
+      
+      // Get image URL before deletion for cleanup
+      final imageUrl = restaurantData != null ? restaurantData['imageUrl'] as String? : null;
+      
+      // Get all menu items for this restaurant
       final menuItemsRef = _firestore
           .collection('restaurants')
           .doc(restaurantId)
           .collection('menuItems');
       
-      // First, delete all menu items associated with this restaurant
       final menuItemsSnapshot = await menuItemsRef.get();
+      
+      // Start batch operations for Firestore deletions
       final batch = _firestore.batch();
       
+      // Delete all menu items
       for (final doc in menuItemsSnapshot.docs) {
         batch.delete(doc.reference);
-        
-        // Optional: Delete associated images from storage if needed
-        try {
-          final imageUrl = doc.data()['imageUrl'] as String?;
-          if (imageUrl != null && imageUrl.isNotEmpty) {
-            final ref = _storage.refFromURL(imageUrl);
-            await ref.delete();
-          }
-        } catch (e) {
-          // Continue even if image deletion fails
-          print('Error deleting menu item image: $e');
-        }
       }
       
-      // Commit the batch deletion of menu items
+      // Delete the restaurant document
+      batch.delete(restaurantDoc);
+      
+      // Commit the batch deletion
       await batch.commit();
       
-      // Delete the restaurant document
-      await restaurantDoc.delete();
-      
-      // Remove restaurantId from user document
+      // Force update user document to remove restaurant reference
       await _firestore
           .collection('users')
           .doc(user.uid)
@@ -353,51 +374,108 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
             'updatedAt': Timestamp.fromDate(DateTime.now()),
           });
       
-      // Optional: Delete restaurant image from storage if exists
-      try {
-        final restaurantSnapshot = await restaurantDoc.get();
-        if (restaurantSnapshot.exists) {
-          final imageUrl = restaurantSnapshot.data()?['imageUrl'] as String?;
-          if (imageUrl != null && imageUrl.isNotEmpty) {
-            final ref = _storage.refFromURL(imageUrl);
-            await ref.delete();
-          }
-        }
-      } catch (e) {
-        // Continue even if image deletion fails
-        print('Error deleting restaurant image: $e');
-      }
+      print('User ${user.uid} document updated after restaurant deletion');
       
-      // Optional: Delete any other related data (reviews, orders, etc.)
-      try {
-        // Delete reviews
-        final reviewsRef = _firestore
-            .collection('reviews')
-            .where('restaurantId', isEqualTo: restaurantId);
-        
-        final reviewsSnapshot = await reviewsRef.get();
-        final reviewsBatch = _firestore.batch();
-        
-        for (final doc in reviewsSnapshot.docs) {
-          reviewsBatch.delete(doc.reference);
-        }
-        
-        await reviewsBatch.commit();
-      } catch (e) {
-        print('Error deleting reviews: $e');
-      }
+      // Clean up storage images (optional - can be removed if not needed)
+      await _cleanupStorageImages(imageUrl, menuItemsSnapshot);
       
+      // Clean up related data (reviews, orders, etc.)
+      await _cleanupRelatedData(restaurantId);
+      
+      // Force refresh the state to ensure UI updates
       state = const AsyncValue.data(null);
+      
       print('Restaurant $restaurantId and associated data deleted successfully');
       
     } on FirebaseException catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
-      print('Firebase error deleting restaurant: ${e.message}');
+      print('Firebase error deleting restaurant: ${e.code} - ${e.message}');
       throw Exception('Failed to delete restaurant: ${e.message}');
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
       print('Unexpected error deleting restaurant: $e');
       throw Exception('Failed to delete restaurant: $e');
+    }
+  }
+
+  // Helper method to cleanup storage images
+  Future<void> _cleanupStorageImages(String? restaurantImageUrl, QuerySnapshot menuItemsSnapshot) async {
+    try {
+      // Delete restaurant image if exists
+      if (restaurantImageUrl != null && restaurantImageUrl.isNotEmpty) {
+        final ref = _storage.refFromURL(restaurantImageUrl);
+        await ref.delete().catchError((e) {
+          print('Error deleting restaurant image: $e');
+          // Continue even if image deletion fails
+        });
+      }
+      
+      // Delete menu item images
+      for (final doc in menuItemsSnapshot.docs) {
+        final docData = doc.data() as Map<String, dynamic>?;
+        final imageUrl = docData != null ? docData['imageUrl'] as String? : null;
+        
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          try {
+            final ref = _storage.refFromURL(imageUrl);
+            await ref.delete();
+          } catch (e) {
+            print('Error deleting menu item image: $e');
+            // Continue even if image deletion fails
+          }
+        }
+      }
+    } catch (e) {
+      print('Error in storage cleanup: $e');
+      // Don't throw error - image cleanup is optional
+    }
+  }
+
+  // Helper method to cleanup related data
+  Future<void> _cleanupRelatedData(String restaurantId) async {
+    try {
+      // Delete reviews
+      final reviewsRef = _firestore
+          .collection('reviews')
+          .where('restaurantId', isEqualTo: restaurantId);
+      
+      final reviewsSnapshot = await reviewsRef.get();
+      final reviewsBatch = _firestore.batch();
+      
+      for (final doc in reviewsSnapshot.docs) {
+        reviewsBatch.delete(doc.reference);
+      }
+      
+      if (reviewsSnapshot.docs.isNotEmpty) {
+        await reviewsBatch.commit();
+        print('Deleted ${reviewsSnapshot.docs.length} reviews');
+      }
+      
+      // Cleanup orders - update orders to mark as cancelled instead of deleting
+      final ordersRef = _firestore
+          .collection('orders')
+          .where('restaurantId', isEqualTo: restaurantId)
+          .where('status', whereIn: ['pending', 'confirmed', 'preparing']);
+      
+      final ordersSnapshot = await ordersRef.get();
+      final ordersBatch = _firestore.batch();
+      
+      for (final doc in ordersSnapshot.docs) {
+        ordersBatch.update(doc.reference, {
+          'status': 'cancelled',
+          'cancellationReason': 'Restaurant deleted',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+      
+      if (ordersSnapshot.docs.isNotEmpty) {
+        await ordersBatch.commit();
+        print('Updated ${ordersSnapshot.docs.length} orders to cancelled status');
+      }
+      
+    } catch (e) {
+      print('Error cleaning up related data: $e');
+      // Don't throw error - related data cleanup is optional
     }
   }
 
@@ -415,6 +493,53 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       return RestaurantModel.fromFirestore(snapshot.docs.first);
     } catch (e) {
       rethrow;
+    }
+  }
+
+  // Check if user has a restaurant
+  Future<bool> checkUserHasRestaurant(String userId) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (!userDoc.exists) return false;
+      
+      final hasRestaurant = userDoc.data()?['hasRestaurant'] as bool? ?? false;
+      final restaurantId = userDoc.data()?['restaurantId'] as String?;
+      
+      // Double-check by verifying the restaurant exists
+      if (hasRestaurant && restaurantId != null) {
+        final restaurantDoc = await _firestore.collection('restaurants').doc(restaurantId).get();
+        if (!restaurantDoc.exists) {
+          // Restaurant doesn't exist but user document says it does - fix it
+          await _firestore.collection('users').doc(userId).update({
+            'hasRestaurant': false,
+            'restaurantId': FieldValue.delete(),
+          });
+          return false;
+        }
+        return true;
+      }
+      
+      return hasRestaurant;
+    } catch (e) {
+      print('Error checking user restaurant: $e');
+      return false;
+    }
+  }
+
+  // Force refresh user restaurant status
+  Future<void> refreshUserRestaurantStatus(String userId) async {
+    try {
+      final hasRestaurant = await checkUserHasRestaurant(userId);
+      
+      // Force update the user document to ensure consistency
+      await _firestore.collection('users').doc(userId).update({
+        'hasRestaurant': hasRestaurant,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+      
+      print('Refreshed restaurant status for user $userId: $hasRestaurant');
+    } catch (e) {
+      print('Error refreshing user restaurant status: $e');
     }
   }
 }

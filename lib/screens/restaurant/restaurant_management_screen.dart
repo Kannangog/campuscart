@@ -196,55 +196,61 @@ class _RestaurantManagementScreenState extends ConsumerState<RestaurantManagemen
     }
   }
 
-  Future<void> _deleteRestaurant() async {
-    final user = ref.read(authStateProvider).value;
-    if (user != null && _currentRestaurant != null) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            backgroundColor: Theme.of(context).cardColor,
-            title: const Text('Delete Restaurant'),
-            content: const Text('Are you sure you want to delete your restaurant? This action cannot be undone.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  setState(() => _isLoading = true);
+Future<void> _deleteRestaurant() async {
+  final user = ref.read(authStateProvider).value;
+  if (user != null && _currentRestaurant != null) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Restaurant'),
+          content: const Text('Are you sure you want to delete your restaurant? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                setState(() => _isLoading = true);
+                
+                try {
+                  await ref.read(restaurantManagementProvider.notifier).deleteRestaurant(_currentRestaurant!.id);
                   
-                  try {
-                    await ref.read(restaurantManagementProvider.notifier).deleteRestaurant(_currentRestaurant!.id);
+                  // Force refresh user status
+                  await ref.read(restaurantManagementProvider.notifier).refreshUserRestaurantStatus(user.uid);
+                  
+                  if (mounted) {
+                    // Force refresh the provider
+                    ref.invalidate(restaurantsByOwnerProvider(user.uid));
+                    ref.invalidate(userHasRestaurantProvider);
                     
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Restaurant deleted successfully')),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error deleting restaurant: ${e.toString()}')),
-                      );
-                    }
-                  } finally {
-                    if (mounted) {
-                      setState(() => _isLoading = false);
-                    }
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Restaurant deleted successfully')),
+                    );
                   }
-                },
-                child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          );
-        },
-      );
-    }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error deleting restaurant: ${e.toString()}')),
+                    );
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(() => _isLoading = false);
+                  }
+                }
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
   }
+}
 
   Future<void> _selectLocation() async {
     final selectedLocation = await Navigator.push(
