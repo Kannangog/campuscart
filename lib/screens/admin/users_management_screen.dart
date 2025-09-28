@@ -266,6 +266,9 @@ class _UsersManagementScreenState extends ConsumerState<UsersManagementScreen>
         return Colors.purple;
       case UserRole.restaurantOwner:
         return Colors.orange;
+      case UserRole.customer:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -279,6 +282,9 @@ class _UsersManagementScreenState extends ConsumerState<UsersManagementScreen>
         return Icons.admin_panel_settings;
       case UserRole.restaurantOwner:
         return Icons.restaurant;
+      case UserRole.customer:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -292,6 +298,9 @@ class _UsersManagementScreenState extends ConsumerState<UsersManagementScreen>
         return 'Admin';
       case UserRole.restaurantOwner:
         return 'Restaurant Owner';
+      case UserRole.customer:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 

@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+import 'package:campuscart/models/user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -21,7 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authProvider.notifier).signInWithGoogle();
+      await ref.read(authProvider.notifier).signInWithGoogle(role: UserRole.customer);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

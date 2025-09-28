@@ -12,6 +12,8 @@ import '../../models/user_model.dart';
 import 'phone_auth_screen.dart';
 import '../../screens/user/user_dashboard.dart';
 import '../../screens/restaurant/restaurant_dashboard.dart';
+import 'terms_and_conditions_screen.dart';
+import 'privacy_policy_screen.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -23,6 +25,7 @@ class SignUpScreen extends ConsumerStatefulWidget {
 class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   UserRole _selectedRole = UserRole.user;
   bool _isLoading = false;
+  bool _acceptedTerms = false;
   StreamSubscription<User?>? _authSubscription;
 
   @override
@@ -54,6 +57,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         _navigateToDashboard(userModel);
       }
     } catch (e) {
+      // Handle error
     }
   }
 
@@ -73,16 +77,61 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   }
 
   Future<void> _signInWithGoogle() async {
+    if (!_acceptedTerms) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please accept Terms and Conditions and Privacy Policy to continue.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
+      // Check if user already exists
+      final googleUser = await ref.read(authProvider.notifier).getCurrentGoogleUser();
+      if (googleUser != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(googleUser.uid)
+            .get();
+        
+        if (userDoc.exists) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account already exists. Please sign in instead.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            // Navigate to login page
+            Navigator.of(context).pop();
+          }
+          return;
+        }
+      }
+
+      // Proceed with sign up
       await ref.read(authProvider.notifier).signInWithGoogle(role: _selectedRole);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Google sign-in successful!'),
+            content: Text('Google sign-up successful!'),
             backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'An error occurred during Google sign-up.'),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -103,12 +152,23 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   }
 
   void _navigateToPhoneAuth() {
+    if (!_acceptedTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please accept Terms and Conditions and Privacy Policy to continue.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => PhoneAuthScreen(selectedRole: _selectedRole),
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +265,101 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               .slideX(begin: -0.3, curve: Curves.easeOutBack),
               
               const SizedBox(height: 32),
+              
+              // Terms and Conditions Acceptance
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Checkbox(
+                          value: _acceptedTerms,
+                          onChanged: (value) {
+                            setState(() {
+                              _acceptedTerms = value ?? false;
+                            });
+                          },
+                          activeColor: lightGreen,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'I agree to the Terms and Conditions and Privacy Policy',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) => const TermsAndConditionsScreen(),
+                                        ),
+                                      );
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text(
+                                      'Terms and Conditions',
+                                      style: TextStyle(
+                                        color: lightGreen,
+                                        fontSize: 12,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) => const PrivacyPolicyScreen(),
+                                        ),
+                                      );
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text(
+                                      'Privacy Policy',
+                                      style: TextStyle(
+                                        color: lightGreen,
+                                        fontSize: 12,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+              .animate()
+              .fadeIn(delay: 450.ms)
+              .slideY(begin: 0.3, curve: Curves.easeOut),
+              
+              const SizedBox(height: 24),
               
               // Sign Up Options
               Text(
@@ -352,25 +507,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               
               const SizedBox(height: 24),
               
-              // Terms and Privacy with improved styling
-              Text(
-                'By continuing, you agree to our Terms of Service and Privacy Policy.',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
-                textAlign: TextAlign.center,
-              )
-              .animate()
-              .fadeIn(delay: 900.ms)
-              .blur(
-                begin: const Offset(0, 5),
-                duration: 600.ms,
-                curve: Curves.easeOut,
-              ),
-              
-              const SizedBox(height: 32),
-              
               // Sign In Link with improved styling
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -400,7 +536,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 ],
               )
               .animate()
-              .fadeIn(delay: 1000.ms)
+              .fadeIn(delay: 900.ms)
               .scale(begin: const Offset(0.95, 0.95), duration: 500.ms),
             ],
           ),

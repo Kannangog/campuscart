@@ -512,4 +512,6 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
         return 'Password reset failed: ${e.message ?? "Unknown error"}';
     }
   }
+
+  Future getCurrentGoogleUser() async {}
 }

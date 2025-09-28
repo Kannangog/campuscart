@@ -1,10 +1,11 @@
 // ignore_for_file: deprecated_member_use
 
+import 'package:campuscart/screens/user/Favorites_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/auth_provider.dart'; // Import your favorites screen
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -135,11 +136,11 @@ class ProfileScreen extends ConsumerWidget {
                       
                       _buildProfileOption(
                         context,
-                        icon: Icons.location_on,
-                        title: 'Saved Addresses',
-                        subtitle: 'Manage your delivery addresses',
+                        icon: Icons.notifications,
+                        title: 'Notifications',
+                        subtitle: 'Manage notification preferences',
                         onTap: () {
-                          // Navigate to saved addresses
+                          // Navigate to notification settings
                         },
                       ).animate().fadeIn(delay: 900.ms).slideX(begin: -0.3),
                       
@@ -147,25 +148,17 @@ class ProfileScreen extends ConsumerWidget {
                       
                       _buildProfileOption(
                         context,
-                        icon: Icons.payment,
-                        title: 'Payment Methods',
-                        subtitle: 'Manage your payment options',
+                        icon: Icons.favorite,
+                        title: 'Favorites',
+                        subtitle: 'Your favorite restaurants and dishes',
                         onTap: () {
-                          // Navigate to payment methods
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const FavoritesScreen(),
+                            ),
+                          );
                         },
                       ).animate().fadeIn(delay: 1000.ms).slideX(begin: -0.3),
-                      
-                      const Divider(height: 1),
-                      
-                      _buildProfileOption(
-                        context,
-                        icon: Icons.notifications,
-                        title: 'Notifications',
-                        subtitle: 'Manage notification preferences',
-                        onTap: () {
-                          // Navigate to notification settings
-                        },
-                      ).animate().fadeIn(delay: 1100.ms).slideX(begin: -0.3),
                     ],
                   ),
                 ),
@@ -178,37 +171,13 @@ class ProfileScreen extends ConsumerWidget {
                     children: [
                       _buildProfileOption(
                         context,
-                        icon: Icons.favorite,
-                        title: 'Favorites',
-                        subtitle: 'Your favorite restaurants and dishes',
-                        onTap: () {
-                          // Navigate to favorites
-                        },
-                      ).animate().fadeIn(delay: 1200.ms).slideX(begin: -0.3),
-                      
-                      const Divider(height: 1),
-                      
-                      _buildProfileOption(
-                        context,
                         icon: Icons.help,
                         title: 'Help & Support',
                         subtitle: 'Get help and contact support',
                         onTap: () {
                           // Navigate to help
                         },
-                      ).animate().fadeIn(delay: 1300.ms).slideX(begin: -0.3),
-                      
-                      const Divider(height: 1),
-                      
-                      _buildProfileOption(
-                        context,
-                        icon: Icons.info,
-                        title: 'About',
-                        subtitle: 'App version and information',
-                        onTap: () {
-                          _showAboutDialog(context);
-                        },
-                      ).animate().fadeIn(delay: 1400.ms).slideX(begin: -0.3),
+                      ).animate().fadeIn(delay: 1100.ms).slideX(begin: -0.3),
                       
                       const Divider(height: 1),
                       
@@ -219,7 +188,7 @@ class ProfileScreen extends ConsumerWidget {
                         subtitle: 'Sign out of your account',
                         onTap: () => _showSignOutDialog(context, ref),
                         textColor: Colors.red,
-                      ).animate().fadeIn(delay: 1500.ms).slideX(begin: -0.3),
+                      ).animate().fadeIn(delay: 1200.ms).slideX(begin: -0.3),
                     ],
                   ),
                 ),
@@ -232,7 +201,7 @@ class ProfileScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.grey.shade500,
                   ),
-                ).animate().fadeIn(delay: 1600.ms),
+                ).animate().fadeIn(delay: 1300.ms),
               ],
             ),
           );
@@ -363,24 +332,6 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  void _showAboutDialog(BuildContext context) {
-    showAboutDialog(
-      context: context,
-      applicationName: 'FoodHub',
-      applicationVersion: '1.0.0',
-      applicationIcon: const Icon(Icons.restaurant, size: 48),
-      children: [
-        const Text('Your favorite food delivery app.'),
-        const SizedBox(height: 16),
-        const Text('Features:'),
-        const Text('• Browse restaurants and menus'),
-        const Text('• Easy ordering and payment'),
-        const Text('• Real-time order tracking'),
-        const Text('• Save favorite restaurants'),
-      ],
     );
   }
 }

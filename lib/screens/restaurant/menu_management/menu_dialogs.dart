@@ -282,7 +282,7 @@ Future<String?> _uploadImage(File imageFile) async {
     try {
       price = double.parse(_state.priceController.text.trim());
       if (price <= 0) {
-        throw FormatException('Price must be greater than 0');
+        throw const FormatException('Price must be greater than 0');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -304,7 +304,7 @@ Future<String?> _uploadImage(File imageFile) async {
       try {
         specialOfferPrice = double.parse(_state.specialOfferController.text.trim());
         if (specialOfferPrice <= 0) {
-          throw FormatException('Special offer price must be greater than 0');
+          throw const FormatException('Special offer price must be greater than 0');
         }
         if (specialOfferPrice >= price) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -557,7 +557,7 @@ Future<String?> _uploadImage(File imageFile) async {
                     borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
                   ),
                 ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 16),
               Row(
@@ -591,7 +591,7 @@ Future<String?> _uploadImage(File imageFile) async {
                             borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
                           ),
                         ),
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       ),
                     ),
                 ],

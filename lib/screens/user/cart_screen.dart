@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:campuscart/models/menu_item_model.dart';
+import 'package:campuscart/screens/user/restaurants_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -9,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 import '../../providers/cart_provider.dart';
-import 'checkout_screen/checkout_screen.dart';
+import 'checkout_screen/checkout_screen.dart'; // Add this import
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -85,6 +86,14 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _navigateToRestaurants() {
+    // Use pushAndRemoveUntil to clear the navigation stack and start fresh
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const RestaurantsScreen()),
+      (route) => false, // Remove all existing routes
+    );
   }
 
   @override
@@ -446,9 +455,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           const SizedBox(height: 32),
           
           ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
+            onPressed: _navigateToRestaurants, // Use the new navigation method
             icon: const Icon(Icons.restaurant, color: Colors.white),
             label: const Text('Browse Restaurants', style: TextStyle(color: Colors.white)),
             style: ElevatedButton.styleFrom(
