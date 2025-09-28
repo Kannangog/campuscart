@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use, unused_result
 
+import 'package:campuscart/screens/user/Favorites_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../providers/menu_provider.dart';
 import '../../providers/cart_provider.dart';
+import '../../providers/favorite_provider.dart';
 import '../../models/restaurant_model.dart';
 import '../../models/menu_item_model.dart';
 import 'restaurant_detail_screen.dart';
@@ -163,6 +165,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  void _toggleFavorite(MenuItemModel item, BuildContext context) {
+    ref.read(favoriteProvider.notifier).toggleFavorite(item);
+    final isFavorite = ref.read(favoriteProvider.notifier).isFavorite(item.id);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isFavorite ? 'Added to favorites' : 'Removed from favorites'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: isFavorite ? Colors.green : Colors.grey,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  void _showComingSoonDialog(BuildContext context, String title) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(title),
+          content: const Text('This feature is coming soon! Stay tuned for exciting offers.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final restaurants = ref.watch(restaurantsProvider);
@@ -170,6 +207,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final authState = ref.watch(authStateProvider);
     final user = authState.value;
     final cart = ref.watch(cartProvider);
+    final favorites = ref.watch(favoriteProvider);
 
     return Scaffold(
       backgroundColor: Colors.green[50],
@@ -178,6 +216,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ref.refresh(restaurantsProvider);
           ref.refresh(topSellingItemsProvider);
           ref.refresh(menuProvider);
+          ref.refresh(favoriteProvider);
         },
         child: CustomScrollView(
           controller: _scrollController,
@@ -201,7 +240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       color: Colors.black87,
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
-                      fontFamily: ' Lobster',
+                      fontFamily: 'Lobster',
                     ),
                   ),
                 ),
@@ -211,6 +250,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ),
               actions: [
+                // Favorites Icon
+                Stack(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FavoritesScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.favorite, 
+                          color: Colors.red, size: 24),
+                    ),
+                    if (favorites.isNotEmpty)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            favorites.length.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                // Cart Icon
                 Stack(
                   children: [
                     IconButton(
@@ -360,76 +437,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   children: [
                     CarouselSlider(
                       items: _promoCards.map((card) {
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            gradient: card['gradient'],
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: CachedNetworkImage(
-                                  imageUrl: card['image'],
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                  color: Colors.black.withOpacity(0.2),
-                                  colorBlendMode: BlendMode.darken,
+                        return GestureDetector(
+                          onTap: () {
+                            _showComingSoonDialog(context, card['title']);
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: card['gradient'],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
                                 ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      card['title'],
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      card['subtitle'],
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        'Order Now',
-                                        style: TextStyle(
-                                          color: Theme.of(context).colorScheme.primary,
+                              ],
+                            ),
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: CachedNetworkImage(
+                                    imageUrl: card['image'],
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    color: Colors.black.withOpacity(0.2),
+                                    colorBlendMode: BlendMode.darken,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        card['title'],
+                                        style: const TextStyle(
+                                          color: Colors.white,
                                           fontWeight: FontWeight.bold,
+                                          fontSize: 20,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        card['subtitle'],
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.9),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          'Order Now',
+                                          style: TextStyle(
+                                            color: Theme.of(context).colorScheme.primary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         );
                       }).toList(),
@@ -584,7 +666,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           Navigator.pushNamed(context, '/restaurants');
                         },
                         child: Text(
-                          'See All',
+                          'View All',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w600,
@@ -597,7 +679,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
 
-            // Popular Restaurants List
+            // Popular Restaurants Horizontal List (Netflix-style)
             restaurants.when(
               data: (restaurants) {
                 if (restaurants.isEmpty) {
@@ -622,18 +704,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   );
                 }
 
-                return SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final restaurant = restaurants[index];
-                      return _buildRestaurantCard(context, restaurant, index);
-                    },
-                    childCount: restaurants.length > 3 ? 3 : restaurants.length, // Limit to 3 items
+                return SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 220,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemCount: restaurants.length,
+                      itemBuilder: (context, index) {
+                        final restaurant = restaurants[index];
+                        return _buildRestaurantCardHorizontal(context, restaurant, index);
+                      },
+                    ),
                   ),
                 );
               },
               loading: () => SliverToBoxAdapter(
-                child: Padding(
+                child: Container(
+                  height: 200,
                   padding: const EdgeInsets.all(16),
                   child: Center(
                     child: CircularProgressIndicator(
@@ -672,42 +760,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ],
                   ),
                 ),
-              ),
-            ),
-
-            // View All Restaurants Button (if there are more than 3)
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final restaurants = ref.watch(restaurantsProvider);
-                  return restaurants.maybeWhen(
-                    data: (data) {
-                      if (data.length > 3) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pushNamed(context, '/restaurants');
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              foregroundColor: Theme.of(context).colorScheme.primary,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: BorderSide(color: Theme.of(context).colorScheme.primary),
-                              ),
-                              minimumSize: const Size(double.infinity, 48),
-                            ),
-                            child: const Text('View All Restaurants'),
-                          ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                    orElse: () => const SizedBox.shrink(),
-                  );
-                },
               ),
             ),
 
@@ -776,7 +828,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: items.length > 5 ? 5 : items.length, // Limit to 5 items
+                      itemCount: items.length,
                       itemBuilder: (context, index) {
                         final item = items[index];
                         return _buildFoodItemCard(context, item, index);
@@ -844,6 +896,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         setState(() {
           _selectedCategory = category;
         });
+        // Navigate to category screen with filtered items
         Navigator.pushNamed(
           context, 
           '/category', 
@@ -875,10 +928,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             const SizedBox(height: 6),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: isSelected ? color : Colors.black87,
               ),
               textAlign: TextAlign.center,
               maxLines: 1,
@@ -890,11 +943,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  // Helper method for building restaurant card
-  Widget _buildRestaurantCard(BuildContext context, RestaurantModel restaurant, int index) {
+  // Helper method for building restaurant card (Horizontal Netflix-style)
+  Widget _buildRestaurantCardHorizontal(BuildContext context, RestaurantModel restaurant, int index) {
     final isOpen = _isRestaurantOpen(restaurant.openingTime as String?, restaurant.closingTime as String?);
     
-    return InkWell(
+    return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
@@ -903,9 +956,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         );
       },
-      borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        width: 280,
+        margin: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -933,7 +986,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: CachedNetworkImage(
                       imageUrl: restaurant.imageUrl,
                       width: double.infinity,
-                      height: 150,
+                      height: 140,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
                         color: Colors.grey.shade100,
@@ -947,8 +1000,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ),
                 Positioned(
-                  top: 12,
-                  right: 12,
+                  top: 8,
+                  right: 8,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -1048,6 +1101,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   // Helper method for building food item card
   Widget _buildFoodItemCard(BuildContext context, MenuItemModel item, int index) {
+    final isFavorite = ref.read(favoriteProvider.notifier).isFavorite(item.id);
+    
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -1102,23 +1157,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.favorite_border,
-                        size: 16,
-                        color: Colors.grey.shade700,
+                    child: GestureDetector(
+                      onTap: () => _toggleFavorite(item, context),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          size: 16,
+                          color: isFavorite ? Colors.red : Colors.grey.shade700,
+                        ),
                       ),
                     ),
                   ),
@@ -1225,6 +1283,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   // Helper method for building search result items
   Widget _buildSearchResultItem(BuildContext context, MenuItemModel item, int index) {
+    final isFavorite = ref.read(favoriteProvider.notifier).isFavorite(item.id);
+    
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -1249,9 +1309,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       subtitle: Text('₹${item.price.toStringAsFixed(2)} • ${item.category}',
           style: TextStyle(color: Colors.grey.shade700)),
-      trailing: IconButton(
-        icon: Icon(Icons.add_shopping_cart, color: Theme.of(context).colorScheme.primary),
-        onPressed: () => _addToCart(item, 1, context),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              isFavorite ? Icons.favorite : Icons.favorite_border,
+              color: isFavorite ? Colors.red : Colors.grey,
+            ),
+            onPressed: () => _toggleFavorite(item, context),
+          ),
+          IconButton(
+            icon: Icon(Icons.add_shopping_cart, color: Theme.of(context).colorScheme.primary),
+            onPressed: () => _addToCart(item, 1, context),
+          ),
+        ],
       ),
       onTap: () {
         Navigator.push(
