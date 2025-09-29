@@ -14,6 +14,7 @@ import '../../models/restaurant_model.dart';
 import '../../models/menu_item_model.dart';
 import 'restaurant_detail_screen.dart';
 import 'food_detail_screen.dart';
+import 'cart_screen.dart'; // Add this import
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -287,12 +288,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ),
                   ],
                 ),
-                // Cart Icon
+                // Cart Icon - Fixed navigation
                 Stack(
                   children: [
                     IconButton(
                       onPressed: () {
-                        Navigator.pushNamed(context, '/cart');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CartScreen(),
+                          ),
+                        );
                       },
                       icon: const Icon(Icons.shopping_cart, 
                           color: Colors.black87, size: 24),
@@ -604,6 +610,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ),
                       TextButton(
                         onPressed: () {
+                          // Fixed: Navigate to categories screen
                           Navigator.pushNamed(context, '/categories');
                         },
                         child: Text(
@@ -645,7 +652,121 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
 
-            // Popular Restaurants Header
+            // POPULAR ITEMS SECTION - MOVED BEFORE RESTAURANTS
+            SliverToBoxAdapter(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Popular Items',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          // Fixed: Navigate to popular items screen
+                          Navigator.pushNamed(context, '/popular-items');
+                        },
+                        child: Text(
+                          'View All',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Top Selling Items - MOVED BEFORE RESTAURANTS
+            topSellingItems.when(
+              data: (items) {
+                if (items.isEmpty) {
+                  return SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Icon(Icons.fastfood, size: 64, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No popular items yet',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            'Orders will appear here',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 240,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return _buildFoodItemCard(context, item, index);
+                      },
+                    ),
+                  ),
+                );
+              },
+              loading: () => SliverToBoxAdapter(
+                child: Container(
+                  height: 200,
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+              error: (error, stack) => SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Icon(Icons.error, size: 64, color: Colors.red.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error loading popular items',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          ref.refresh(topSellingItemsProvider);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Try Again'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Popular Restaurants Header - MOVED AFTER POPULAR ITEMS
             SliverToBoxAdapter(
               child: FadeTransition(
                 opacity: _fadeAnimation,
@@ -663,6 +784,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ),
                       TextButton(
                         onPressed: () {
+                          // Fixed: Navigate to restaurants screen
                           Navigator.pushNamed(context, '/restaurants');
                         },
                         child: Text(
@@ -750,119 +872,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ElevatedButton(
                         onPressed: () {
                           ref.refresh(restaurantsProvider);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Try Again'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Top Selling Items Header
-            SliverToBoxAdapter(
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Popular Items',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/popular-items');
-                        },
-                        child: Text(
-                          'View All',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Top Selling Items
-            topSellingItems.when(
-              data: (items) {
-                if (items.isEmpty) {
-                  return SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Icon(Icons.fastfood, size: 64, color: Colors.grey.shade400),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No popular items yet',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            'Orders will appear here',
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 240,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        return _buildFoodItemCard(context, item, index);
-                      },
-                    ),
-                  ),
-                );
-              },
-              loading: () => SliverToBoxAdapter(
-                child: Container(
-                  height: 200,
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ),
-              error: (error, stack) => SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Icon(Icons.error, size: 64, color: Colors.red.shade400),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading popular items',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          ref.refresh(topSellingItemsProvider);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).colorScheme.primary,
