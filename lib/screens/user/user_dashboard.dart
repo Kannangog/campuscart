@@ -10,7 +10,9 @@ import 'profile_screen.dart';
 import '../../providers/cart_provider.dart';
 
 class UserDashboard extends ConsumerStatefulWidget {
-  const UserDashboard({super.key});
+  final int initialIndex; // Add this parameter
+  
+  const UserDashboard({super.key, this.initialIndex = 0}); // Set default value
 
   @override
   ConsumerState<UserDashboard> createState() => _UserDashboardState();
@@ -18,7 +20,7 @@ class UserDashboard extends ConsumerStatefulWidget {
 
 class _UserDashboardState extends ConsumerState<UserDashboard>
     with SingleTickerProviderStateMixin {
-  int _currentIndex = 0;
+  int _currentIndex = 0; // Initialize with 0
   late AnimationController _animationController;
   late Animation<double> _animation;
 
@@ -33,6 +35,9 @@ class _UserDashboardState extends ConsumerState<UserDashboard>
   @override
   void initState() {
     super.initState();
+    // Use the initialIndex from widget parameter
+    _currentIndex = widget.initialIndex;
+    
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),

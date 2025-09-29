@@ -1,7 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:campuscart/models/menu_item_model.dart';
-import 'package:campuscart/screens/user/restaurants_screen.dart';
+import 'package:campuscart/screens/user/user_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 import '../../providers/cart_provider.dart';
-import 'checkout_screen/checkout_screen.dart'; // Add this import
+import 'checkout_screen/checkout_screen.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -25,7 +25,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   @override
   void initState() {
     super.initState();
-    // Load cart from storage when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCartFromStorage();
     });
@@ -34,10 +33,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   Future<void> _loadCartFromStorage() async {
     try {
       final cartNotifier = ref.read(cartProvider.notifier);
-      // Check if cart is already loaded
       final currentCart = ref.read(cartProvider);
       if (currentCart.isEmpty) {
-        // Load from storage only if current cart is empty
         final prefs = await SharedPreferences.getInstance();
         final cartJson = prefs.getString('cart');
         
@@ -89,13 +86,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   void _navigateToRestaurants() {
-    // Use pushAndRemoveUntil to clear the navigation stack and start fresh
+    // Navigate to dashboard with restaurants tab selected
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const RestaurantsScreen()),
-      (route) => false, // Remove all existing routes
+      MaterialPageRoute(
+        builder: (context) => UserDashboard(initialIndex: 1), // 1 for restaurants tab
+      ),
+      (route) => false,
     );
   }
 
+  // Rest of your CartScreen code remains the same...
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
@@ -148,7 +148,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           ? _buildEmptyCart(context)
           : Column(
               children: [
-                // Cart Items
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -174,7 +173,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           padding: const EdgeInsets.all(12),
                           child: Row(
                             children: [
-                              // Item Image
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: CachedNetworkImage(
@@ -196,7 +194,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
                               const SizedBox(width: 16),
 
-                              // Item Details
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +237,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                                 ),
                               ),
 
-                              // Quantity Controls
                               Column(
                                 children: [
                                   Container(
@@ -300,7 +296,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                                         SnackBar(
                                           content: Text('${menuItem.name} removed from cart'),
                                           duration: const Duration(seconds: 1),
-                                          backgroundColor: const Color(0xFF4CAF50), // Light green
+                                          backgroundColor: const Color(0xFF4CAF50),
                                         ),
                                       );
                                     },
@@ -322,7 +318,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   ),
                 ),
 
-                // Order Summary
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -391,7 +386,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50), // Light green
+                            backgroundColor: const Color(0xFF4CAF50),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
@@ -417,8 +412,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   Widget _buildEmptyCart(BuildContext context) {
     return Container(
-      width: double.infinity, // Ensure full width
-      color: Colors.white, // This ensures no white space on sides
+      width: double.infinity,
+      color: Colors.white,
       padding: const EdgeInsets.all(20),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -455,11 +450,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           const SizedBox(height: 32),
           
           ElevatedButton.icon(
-            onPressed: _navigateToRestaurants, // Use the new navigation method
+            onPressed: _navigateToRestaurants,
             icon: const Icon(Icons.restaurant, color: Colors.white),
             label: const Text('Browse Restaurants', style: TextStyle(color: Colors.white)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50), // Light green
+              backgroundColor: const Color(0xFF4CAF50),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -515,7 +510,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 const SnackBar(
                   content: Text('Cart cleared'),
                   duration: Duration(seconds: 1),
-                  backgroundColor: Color(0xFF4CAF50), // Light green
+                  backgroundColor: Color(0xFF4CAF50),
                 ),
               );
             },
