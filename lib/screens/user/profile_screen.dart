@@ -1,11 +1,12 @@
 // ignore_for_file: deprecated_member_use
 
+import 'package:campuscart/screens/notifications/notifications_screen.dart';
 import 'package:campuscart/screens/user/Favorites_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../providers/auth_provider.dart'; // Import your favorites screen
+import '../../providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -30,7 +31,7 @@ class ProfileScreen extends ConsumerWidget {
         elevation: 0,
         actions: [
           IconButton(
-            onPressed: () => ref.read(authProvider.notifier).signOut(),
+            onPressed: () => _showSignOutDialog(context, ref),
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -69,6 +70,8 @@ class ProfileScreen extends ConsumerWidget {
                                   width: 100,
                                   height: 100,
                                   fit: BoxFit.cover,
+                                  placeholder: (context, url) => const CircularProgressIndicator(),
+                                  errorWidget: (context, url, error) => const Icon(Icons.person),
                                 ),
                               )
                             : const Icon(
@@ -138,9 +141,13 @@ class ProfileScreen extends ConsumerWidget {
                         context,
                         icon: Icons.notifications,
                         title: 'Notifications',
-                        subtitle: 'Manage notification preferences',
+                        subtitle: 'View and manage your notifications',
                         onTap: () {
-                          // Navigate to notification settings
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const NotificationsScreen(),
+                            ),
+                          );
                         },
                       ).animate().fadeIn(delay: 900.ms).slideX(begin: -0.3),
                       
@@ -171,13 +178,27 @@ class ProfileScreen extends ConsumerWidget {
                     children: [
                       _buildProfileOption(
                         context,
+                        icon: Icons.settings,
+                        title: 'Settings',
+                        subtitle: 'App settings and preferences',
+                        onTap: () {
+                          // Navigate to settings
+                          _showComingSoonSnackbar(context);
+                        },
+                      ).animate().fadeIn(delay: 1100.ms).slideX(begin: -0.3),
+                      
+                      const Divider(height: 1),
+                      
+                      _buildProfileOption(
+                        context,
                         icon: Icons.help,
                         title: 'Help & Support',
                         subtitle: 'Get help and contact support',
                         onTap: () {
                           // Navigate to help
+                          _showComingSoonSnackbar(context);
                         },
-                      ).animate().fadeIn(delay: 1100.ms).slideX(begin: -0.3),
+                      ).animate().fadeIn(delay: 1200.ms).slideX(begin: -0.3),
                       
                       const Divider(height: 1),
                       
@@ -188,7 +209,7 @@ class ProfileScreen extends ConsumerWidget {
                         subtitle: 'Sign out of your account',
                         onTap: () => _showSignOutDialog(context, ref),
                         textColor: Colors.red,
-                      ).animate().fadeIn(delay: 1200.ms).slideX(begin: -0.3),
+                      ).animate().fadeIn(delay: 1300.ms).slideX(begin: -0.3),
                     ],
                   ),
                 ),
@@ -197,17 +218,35 @@ class ProfileScreen extends ConsumerWidget {
                 
                 // App Version
                 Text(
-                  'FoodHub v1.0.0',
+                  'CampusCart v1.0.0',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.grey.shade500,
                   ),
-                ).animate().fadeIn(delay: 1300.ms),
+                ).animate().fadeIn(delay: 1400.ms),
               ],
             ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('Error: $error')),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                'Error loading profile',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error.toString(),
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -221,19 +260,47 @@ class ProfileScreen extends ConsumerWidget {
     Color? textColor,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        color: textColor ?? Theme.of(context).colorScheme.primary,
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: textColor?.withOpacity(0.1) ?? Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          color: textColor ?? Theme.of(context).colorScheme.primary,
+          size: 20,
+        ),
       ),
       title: Text(
         title,
         style: TextStyle(
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
           color: textColor,
+          fontSize: 16,
         ),
       ),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: textColor?.withOpacity(0.7) ?? Colors.grey.shade600,
+          fontSize: 14,
+        ),
+      ),
+      trailing: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.arrow_forward_ios,
+          size: 14,
+          color: Colors.grey.shade600,
+        ),
+      ),
       onTap: onTap,
     );
   }
@@ -254,6 +321,7 @@ class ProfileScreen extends ConsumerWidget {
               decoration: const InputDecoration(
                 labelText: 'Full Name',
                 border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
               ),
             ),
             const SizedBox(height: 16),
@@ -262,6 +330,7 @@ class ProfileScreen extends ConsumerWidget {
               decoration: const InputDecoration(
                 labelText: 'Phone Number',
                 border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.phone),
               ),
               keyboardType: TextInputType.phone,
             ),
@@ -274,6 +343,16 @@ class ProfileScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
+              if (nameController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter your name'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+
               try {
                 await ref.read(authProvider.notifier).updateUserProfile(
                   userId: userModel.id,
@@ -301,7 +380,7 @@ class ProfileScreen extends ConsumerWidget {
                 }
               }
             },
-            child: const Text('Save'),
+            child: const Text('Save Changes'),
           ),
         ],
       ),
@@ -331,6 +410,15 @@ class ProfileScreen extends ConsumerWidget {
             child: const Text('Sign Out'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showComingSoonSnackbar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('This feature is coming soon!'),
+        backgroundColor: Colors.blue,
       ),
     );
   }

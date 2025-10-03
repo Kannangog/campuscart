@@ -90,7 +90,7 @@ class OrderModel {
   final String? driverName;
   final String? cancellationReason;
   final String? cancelledBy;
-  final String? foodImageUrl; // Added foodImageUrl field
+  final String? foodImageUrl;
 
   OrderModel({
     required this.id,
@@ -124,7 +124,7 @@ class OrderModel {
     this.driverName,
     this.cancellationReason,
     this.cancelledBy,
-    this.foodImageUrl, // Added to constructor
+    this.foodImageUrl,
   });
 
   factory OrderModel.fromFirestore(DocumentSnapshot doc) {
@@ -202,7 +202,7 @@ class OrderModel {
       driverName: data['driverName']?.toString(),
       cancellationReason: data['cancellationReason']?.toString(),
       cancelledBy: data['cancelledBy']?.toString(),
-      foodImageUrl: data['foodImageUrl']?.toString(), // Added
+      foodImageUrl: data['foodImageUrl']?.toString(),
     );
   }
 
@@ -234,6 +234,7 @@ class OrderModel {
 
   Map<String, dynamic> toFirestore() {
     return {
+      'id': id,
       'userId': userId,
       'userName': userName,
       'userEmail': userEmail,
@@ -268,7 +269,7 @@ class OrderModel {
       'driverName': driverName,
       'cancellationReason': cancellationReason,
       'cancelledBy': cancelledBy,
-      'foodImageUrl': foodImageUrl, // Added
+      'foodImageUrl': foodImageUrl,
     };
   }
 
@@ -304,7 +305,7 @@ class OrderModel {
     String? driverName,
     String? cancellationReason,
     String? cancelledBy,
-    String? foodImageUrl, // Added
+    String? foodImageUrl,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -338,7 +339,7 @@ class OrderModel {
       driverName: driverName ?? this.driverName,
       cancellationReason: cancellationReason ?? this.cancellationReason,
       cancelledBy: cancelledBy ?? this.cancelledBy,
-      foodImageUrl: foodImageUrl ?? this.foodImageUrl, // Added
+      foodImageUrl: foodImageUrl ?? this.foodImageUrl,
     );
   }
 
@@ -481,4 +482,7 @@ class OrderModel {
         return cancelledBy!;
     }
   }
+
+  // Fixed customerName getter - returns the actual userName
+  String get customerName => userName;
 }

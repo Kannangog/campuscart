@@ -4,7 +4,6 @@ import java.io.FileInputStream
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // Flutter plugin must come last
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
 }
@@ -22,6 +21,8 @@ android {
     ndkVersion = "27.0.12077973"
 
     compileOptions {
+        // Enable core library desugaring - CORRECT SYNTAX FOR KOTLIN DSL
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -32,10 +33,13 @@ android {
 
     defaultConfig {
         applicationId = "com.kannan.campuscart" 
-        minSdk = 23 // CHANGED FROM flutter.minSdkVersion to 23
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Add multidex support
+        multiDexEnabled = true
     }
 
     signingConfigs {
@@ -51,13 +55,11 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // Disable both for debug builds
             isMinifyEnabled = false
             isShrinkResources = false
             signingConfig = signingConfigs.getByName("debug")
         }
         getByName("release") {
-            // Enable both for release builds
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -65,7 +67,6 @@ android {
                 "proguard-rules.pro"
             )
             
-            // Only apply signing config if keystore properties exist
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             } else {
@@ -76,14 +77,15 @@ android {
 }
 
 dependencies {
+    // Add core library desugaring dependency
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
-
-    // Core Firebase
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
-
-    // Multidex support for large apps
+    implementation("com.google.firebase:firebase-messaging")
+    
     implementation("androidx.multidex:multidex:2.0.1")
 }
 

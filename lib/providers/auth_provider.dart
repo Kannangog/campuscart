@@ -57,7 +57,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
   }
 
   // Phone Authentication with OTP
-  Future<Map<String, dynamic>> sendOTP({required String phoneNumber}) async {
+  Future<Map<String, dynamic>> sendOTP({required String phoneNumber, UserRole? role}) async {
     try {
       state = const AsyncValue.loading();
       
@@ -80,7 +80,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       // Set up a verification completed callback
       void verificationCompleted(PhoneAuthCredential credential) async {
         try {
-          await _signInWithPhoneCredential(credential, isNewUser: isNewUser);
+          await _signInWithPhoneCredential(
+            credential, 
+            isNewUser: isNewUser,
+            role: isNewUser ? role : null, // Only pass role for new users
+          );
           if (!completer.isCompleted) {
             completer.complete({
               'verificationId': 'auto-verified',
@@ -141,6 +145,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     String? name,
     UserRole? role,
     RestaurantModel? restaurant,
+    bool? isNewUser,
   }) async {
     try {
       state = const AsyncValue.loading();
@@ -157,20 +162,22 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
         smsCode: otp,
       );
 
-      // Check if user exists with this phone number
-      final userQuery = await _firestore
-          .collection('users')
-          .where('phoneNumber', isEqualTo: _auth.currentUser?.phoneNumber)
-          .get();
-      
-      final isNewUser = userQuery.docs.isEmpty;
+      // Determine if this is a new user
+      bool finalIsNewUser = isNewUser ?? true;
+      if (_auth.currentUser?.phoneNumber != null) {
+        final userQuery = await _firestore
+            .collection('users')
+            .where('phoneNumber', isEqualTo: _auth.currentUser!.phoneNumber)
+            .get();
+        finalIsNewUser = userQuery.docs.isEmpty;
+      }
 
       await _signInWithPhoneCredential(
         credential, 
-        isNewUser: isNewUser,
+        isNewUser: finalIsNewUser,
         name: name, 
-        role: role,
-        restaurant: restaurant,
+        role: finalIsNewUser ? role : null, // Only set role for new users
+        restaurant: finalIsNewUser ? restaurant : null, // Only set restaurant for new users
       );
     } on FirebaseAuthException catch (e) {
       final errorMessage = _getOTPVerificationErrorMessage(e);
@@ -184,7 +191,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
 
   Future<void> _signInWithPhoneCredential(
     PhoneAuthCredential credential, {
-    bool isNewUser = false,
+    required bool isNewUser,
     String? name,
     UserRole? role,
     RestaurantModel? restaurant,
@@ -195,9 +202,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       if (userCredential.user != null) {
         await _handleUserCreation(
           userCredential.user!,
+          isNewUser: isNewUser,
           name: name,
           role: role,
-          autoApprove: role != null ? role != UserRole.restaurantOwner : false,
+          autoApprove: (role != null) ? role != UserRole.restaurantOwner : false,
           restaurant: restaurant,
         );
         state = AsyncValue.data(userCredential.user);
@@ -241,12 +249,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
           await _auth.signInWithCredential(credential);
       
       if (userCredential.user != null) {
+        // Check if this is a new user or returning user
+        final userDoc = await _firestore.collection('users').doc(userCredential.user!.uid).get();
+        final bool isNewUser = !userDoc.exists;
+        
         await _handleUserCreation(
           userCredential.user!,
+          isNewUser: isNewUser,
           name: userCredential.user!.displayName,
-          role: role,
+          role: isNewUser ? role : null, // Only set role for new users
           profileImageUrl: userCredential.user!.photoURL,
-          autoApprove: role != null ? role != UserRole.restaurantOwner : true,
+          autoApprove: (role != null) ? role != UserRole.restaurantOwner : true,
         );
         state = AsyncValue.data(userCredential.user);
       } else {
@@ -278,6 +291,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     String? name,
     String? phoneNumber,
     String? profileImageUrl,
+    UserRole? role,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -287,6 +301,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       if (name != null) updates['name'] = name;
       if (phoneNumber != null) updates['phoneNumber'] = phoneNumber;
       if (profileImageUrl != null) updates['profileImageUrl'] = profileImageUrl;
+      if (role != null) updates['role'] = role.index;
 
       await _firestore.collection('users').doc(userId).update(updates);
     } catch (e) {
@@ -385,9 +400,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     }
   }
 
-  // Enhanced User creation handler with better error handling and logging
+  // FIXED: Enhanced User creation handler with proper role preservation
   Future<void> _handleUserCreation(
     User user, {
+    required bool isNewUser,
     String? name,
     UserRole? role,
     String? profileImageUrl,
@@ -397,15 +413,15 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     try {
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       
-      if (!userDoc.exists) {
-        // Create new user document
+      if (isNewUser && !userDoc.exists) {
+        // CREATE NEW USER - This only happens for truly new users
         final userModel = UserModel(
           id: user.uid,
           email: user.email ?? '',
           name: name ?? user.displayName ?? 'User',
           phoneNumber: user.phoneNumber,
           profileImageUrl: profileImageUrl ?? user.photoURL,
-          role: role ?? UserRole.user,
+          role: role ?? UserRole.user, // Use provided role or default to UserRole.user
           isApproved: autoApprove,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -415,7 +431,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
               userModel.toFirestore(),
             );
 
-        debugPrint('New user created: ${user.uid} with role: ${userModel.role}');
+        debugPrint('🆕 NEW USER CREATED: ${user.uid} with role: ${userModel.role}');
 
         // If restaurant owner, create restaurant document
         if (role == UserRole.restaurantOwner && restaurant != null) {
@@ -425,16 +441,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
             ownerId: user.uid,
           );
           await restaurantDoc.set(restaurantWithId.toFirestore());
-          debugPrint('Restaurant created for user: ${user.uid}');
+          debugPrint('🏪 Restaurant created for new user: ${user.uid}');
         }
-      } else {
-        // Get existing user data to preserve role and approval status
+      } else if (userDoc.exists) {
+        // UPDATE EXISTING USER - PRESERVE EXISTING ROLE ALWAYS
         final existingUser = UserModel.fromFirestore(userDoc);
         
         final updates = <String, dynamic>{
           'updatedAt': Timestamp.fromDate(DateTime.now()),
         };
 
+        // Update basic profile info if provided
         if (name != null && name != existingUser.name) {
           updates['name'] = name;
         }
@@ -443,23 +460,38 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
           updates['profileImageUrl'] = profileImageUrl;
         }
         
-        // Only update role if it's provided (during signup) otherwise preserve existing role
-        if (role != null) {
-          updates['role'] = role.index;
-          debugPrint('User role updated from ${existingUser.role} to $role');
-        } else {
-          // Preserve existing role
-          updates['role'] = existingUser.role.index;
-        }
+        // CRITICAL FIX: NEVER update role for existing users during login
+        // Always preserve the existing role
+        updates['role'] = existingUser.role.index;
         
         // Preserve existing approval status
         updates['isApproved'] = existingUser.isApproved;
 
         await _firestore.collection('users').doc(user.uid).update(updates);
-        debugPrint('Existing user updated: ${user.uid}');
+        debugPrint('🔄 EXISTING USER LOGGED IN: ${user.uid} with preserved role: ${existingUser.role}');
+      } else {
+        // Edge case: Document doesn't exist but isNewUser is false
+        // Create user with default role
+        debugPrint('⚠️  Edge case: Creating user document for existing auth user');
+        final userModel = UserModel(
+          id: user.uid,
+          email: user.email ?? '',
+          name: name ?? user.displayName ?? 'User',
+          phoneNumber: user.phoneNumber,
+          profileImageUrl: profileImageUrl ?? user.photoURL,
+          role: UserRole.user, // Default role
+          isApproved: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        await _firestore.collection('users').doc(user.uid).set(
+              userModel.toFirestore(),
+            );
+        debugPrint('📝 Created missing user document: ${user.uid} with default role: ${userModel.role}');
       }
     } catch (e, stack) {
-      debugPrint('Error in _handleUserCreation: $e');
+      debugPrint('❌ Error in _handleUserCreation: $e');
       debugPrint('Stack trace: $stack');
       rethrow;
     }
@@ -513,5 +545,32 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     }
   }
 
-  Future getCurrentGoogleUser() async {}
+  // Method to explicitly set user role (for admin functionality)
+  Future<void> setUserRole({required String userId, required UserRole role}) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'role': role.index,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+      debugPrint('✅ User role updated to: $role for user: $userId');
+    } catch (e) {
+      debugPrint('Error setting user role: $e');
+      rethrow;
+    }
+  }
+
+  // Method to check if user has specific role
+  Future<bool> hasUserRole({required String userId, required UserRole role}) async {
+    try {
+      final userData = await getUserData(userId);
+      return userData?.role == role;
+    } catch (e) {
+      debugPrint('Error checking user role: $e');
+      return false;
+    }
+  }
+
+  Future getCurrentGoogleUser() async {
+    return _googleSignIn.currentUser;
+  }
 }

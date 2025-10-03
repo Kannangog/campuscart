@@ -1,9 +1,11 @@
+// main.dart
 import 'package:campuscart/utilities/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/auth/auth_wrapper.dart';
+import 'providers/notification_provider.dart'; // Single import now
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +23,17 @@ void main() async {
     }
   } catch (e) {
     // Continue without Firebase for debugging
+    debugPrint('Firebase initialization failed: $e');
+  }
+  
+  // Initialize notifications with error handling
+  try {
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    debugPrint('Notification service initialized successfully');
+  } catch (e) {
+    debugPrint('Notification service initialization failed: $e');
+    // Continue without notifications
   }
   
   runApp(const ProviderScope(child: MyApp()));

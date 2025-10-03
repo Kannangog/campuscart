@@ -302,16 +302,128 @@ class OrderManagementService {
     }
   }
 
+  // Send notification to restaurant when new order is placed
+  Future<void> _sendNewOrderNotification(OrderModel order) async {
+    try {
+      // Get restaurant details to send notification
+      final restaurantDoc = await _firestore
+          .collection('restaurants')
+          .doc(order.restaurantId)
+          .get();
+      
+      if (restaurantDoc.exists) {
+        final restaurantData = restaurantDoc.data() as Map<String, dynamic>;
+        final restaurantName = restaurantData['name'] ?? 'Restaurant';
+        
+        // Send notification to user
+        await _firestore.collection('notifications').add({
+          'userId': order.userId,
+          'title': 'Order Placed Successfully!',
+          'message': 'Your order has been placed at $restaurantName. Order ID: #${order.id.substring(0, 8)}',
+          'type': 'order_placed',
+          'orderId': order.id,
+          'read': false,
+          'createdAt': Timestamp.now(),
+        });
+
+        // Send notification to restaurant
+        await _firestore.collection('notifications').add({
+          'userId': order.restaurantId, // Using restaurantId as userId for restaurant notifications
+          'title': 'New Order Received!',
+          'message': 'You have a new order #${order.id.substring(0, 8)} from ${order.customerName}',
+          'type': 'new_order',
+          'orderId': order.id,
+          'read': false,
+          'createdAt': Timestamp.now(),
+        });
+
+        print('Sent new order notifications for order ${order.id}');
+      }
+    } catch (e) {
+      print('Error sending new order notification: $e');
+    }
+  }
+
+  // Send notification when order status is updated
+  Future<void> _sendOrderStatusUpdateNotification(OrderModel order, OrderStatus newStatus) async {
+    try {
+      String title = '';
+      String message = '';
+
+      switch (newStatus) {
+        case OrderStatus.confirmed:
+          title = 'Order Confirmed!';
+          message = 'Your order #${order.id.substring(0, 8)} has been confirmed by the restaurant.';
+          break;
+        case OrderStatus.preparing:
+          title = 'Order Being Prepared!';
+          message = 'Your order #${order.id.substring(0, 8)} is now being prepared.';
+          break;
+        case OrderStatus.ready:
+          title = 'Order Ready!';
+          message = 'Your order #${order.id.substring(0, 8)} is ready for pickup/delivery.';
+          break;
+        case OrderStatus.outForDelivery:
+          title = 'Order Out for Delivery!';
+          message = 'Your order #${order.id.substring(0, 8)} is on its way to you.';
+          break;
+        case OrderStatus.delivered:
+          title = 'Order Delivered!';
+          message = 'Your order #${order.id.substring(0, 8)} has been delivered. Enjoy your meal!';
+          break;
+        case OrderStatus.cancelled:
+          title = 'Order Cancelled';
+          message = 'Your order #${order.id.substring(0, 8)} has been cancelled.';
+          break;
+        default:
+          return;
+      }
+
+      await _firestore.collection('notifications').add({
+        'userId': order.userId,
+        'title': title,
+        'message': message,
+        'type': 'order_status_update',
+        'orderId': order.id,
+        'read': false,
+        'createdAt': Timestamp.now(),
+      });
+
+      print('Sent order status update notification for order ${order.id}');
+    } catch (e) {
+      print('Error sending order status update notification: $e');
+    }
+  }
+
   void dispose() {
     _autoCancelTimer?.cancel();
   }
 
   Future<String> createOrder(OrderModel order) async {
-    final docRef = await _firestore
-        .collection('orders')
-        .add(order.toFirestore());
-    
-    return docRef.id;
+    try {
+      final docRef = await _firestore
+          .collection('orders')
+          .add(order.toFirestore());
+      
+      final orderId = docRef.id;
+      
+      // Update the order with the generated ID
+      await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .update({'id': orderId});
+      
+      // Create a new order instance with the correct ID
+      final createdOrder = order.copyWith(id: orderId);
+      
+      // Send notifications after order is successfully created
+      await _sendNewOrderNotification(createdOrder);
+      
+      return orderId;
+    } catch (e) {
+      print('Error creating order: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateOrderStatus(String orderId, OrderStatus status, {int retryCount = 0}) async {
@@ -331,6 +443,17 @@ class OrderManagementService {
           .collection('orders')
           .doc(orderId)
           .update(updates);
+
+      // Get the updated order to send notification
+      final orderDoc = await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .get();
+      
+      if (orderDoc.exists) {
+        final order = OrderModel.fromFirestore(orderDoc);
+        await _sendOrderStatusUpdateNotification(order, status);
+      }
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         // Wait and retry for index errors
@@ -355,6 +478,17 @@ class OrderManagementService {
       }
       
       await _firestore.collection('orders').doc(orderId).update(updateData);
+
+      // Get the cancelled order to send notification
+      final orderDoc = await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .get();
+      
+      if (orderDoc.exists) {
+        final order = OrderModel.fromFirestore(orderDoc);
+        await _sendOrderStatusUpdateNotification(order, OrderStatus.cancelled);
+      }
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
@@ -371,6 +505,28 @@ class OrderManagementService {
         'status': OrderStatus.outForDelivery.toString().split('.').last,
         'updatedAt': Timestamp.now(),
       });
+
+      // Get the order to send notification
+      final orderDoc = await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .get();
+      
+      if (orderDoc.exists) {
+        final order = OrderModel.fromFirestore(orderDoc);
+        await _sendOrderStatusUpdateNotification(order, OrderStatus.outForDelivery);
+        
+        // Also send notification to driver if needed
+        await _firestore.collection('notifications').add({
+          'userId': driverId,
+          'title': 'New Delivery Assignment',
+          'message': 'You have been assigned to deliver order #${order.id.substring(0, 8)}',
+          'type': 'driver_assignment',
+          'orderId': order.id,
+          'read': false,
+          'createdAt': Timestamp.now(),
+        });
+      }
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
@@ -387,6 +543,17 @@ class OrderManagementService {
         'deliveredAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
       });
+
+      // Get the delivered order to send notification
+      final orderDoc = await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .get();
+      
+      if (orderDoc.exists) {
+        final order = OrderModel.fromFirestore(orderDoc);
+        await _sendOrderStatusUpdateNotification(order, OrderStatus.delivered);
+      }
     } catch (e) {
       if (e is FirebaseException && FirestoreErrorHandler.isIndexError(e) && retryCount < _maxRetries) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
@@ -520,6 +687,17 @@ class OrderManagementService {
           .collection('orders')
           .doc(orderId)
           .update(updates);
+
+      // Get the updated order to send notification
+      final orderDoc = await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .get();
+      
+      if (orderDoc.exists) {
+        final order = OrderModel.fromFirestore(orderDoc);
+        await _sendOrderStatusUpdateNotification(order, newStatus);
+      }
     } catch (e) {
       rethrow;
     }
