@@ -17,6 +17,7 @@ interface NotificationData {
   data?: Record<string, unknown>;
   read: boolean;
   createdAt: FirebaseFirestore.FieldValue;
+  userType?: string;
 }
 
 // Interface for Cloud Function call data
@@ -28,12 +29,6 @@ interface SendNotificationData {
   additionalData?: Record<string, unknown>;
 }
 
-interface BroadcastNotificationData {
-  title: string;
-  message: string;
-  userType?: string;
-  additionalData?: Record<string, unknown>;
-}
 
 // Helper function to clean up failed tokens
 async function cleanupFailedTokens(userId: string, failedTokens: string[]) {
@@ -51,7 +46,7 @@ async function cleanupFailedTokens(userId: string, failedTokens: string[]) {
   }
 }
 
-// Cloud Function to send push notifications when a new notification is created
+// ✅ FIXED: Cloud Function to send push notifications
 export const sendPushNotification = onDocumentCreated(
   "notifications/{notificationId}",
   async (event) => {
@@ -65,12 +60,18 @@ export const sendPushNotification = onDocumentCreated(
       const notification = snapshot.data() as NotificationData;
       const notificationId = event.params.notificationId;
 
-      logger.info(`Processing new notification: ${notificationId}`);
-      logger.info("Notification data:", notification);
+      // ✅ ENHANCED LOGGING
+      logger.info("🎯 ===== NEW NOTIFICATION TRIGGER =====");
+      logger.info(`📄 Notification ID: ${notificationId}`);
+      logger.info(`👤 Target User ID: ${notification.userId}`);
+      logger.info(`📱 Notification Type: ${notification.type}`);
+      logger.info(`👥 User Type: ${notification.userType}`);
+      logger.info(`📝 Title: ${notification.title}`);
+      logger.info(`📨 Message: ${notification.message}`);
 
       // Skip if notification is read or doesn't have userId
       if (notification.read || !notification.userId) {
-        logger.info("Skipping - notification is read or missing userId");
+        logger.info("⏭️ Skipping - notification is read or missing userId");
         return;
       }
 
@@ -82,36 +83,61 @@ export const sendPushNotification = onDocumentCreated(
         .get();
 
       if (!userDoc.exists) {
-        logger.info("User document not found");
+        logger.error(`❌ User document not found for ID: ${notification.userId}`);
         return;
       }
 
       const userData = userDoc.data();
       const tokens: string[] = userData?.fcmTokens || [];
+      const userType = userData?.userType || 'unknown';
+
+      logger.info(`📱 Found ${tokens.length} tokens for user type: ${userType}`);
 
       if (tokens.length === 0) {
-        logger.info("No FCM tokens found for user");
+        logger.warn("⚠️ No FCM tokens found for user");
         return;
       }
 
-      logger.info(`Sending to ${tokens.length} tokens`);
+      logger.info(`🚀 Sending to ${tokens.length} tokens`);
 
-      // Prepare the notification message
+      // ✅ FIXED: Prepare the notification message
       const messaging = getMessaging();
+      
+      // Build data payload
+      const notificationData: Record<string, string> = {
+        notificationId: notificationId,
+        type: notification.type || "general",
+        title: notification.title,
+        body: notification.message,
+        userId: notification.userId, // ✅ This is the TARGET user ID
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        timestamp: Date.now().toString(),
+      };
+
+      // Add additional data from notification
+      if (notification.data) {
+        Object.entries(notification.data).forEach(([key, value]) => {
+          if (typeof value === 'string') {
+            notificationData[key] = value;
+          } else {
+            notificationData[key] = JSON.stringify(value);
+          }
+        });
+      }
+
+      // ✅ CRITICAL: Ensure userType is included
+      if (notification.userType) {
+        notificationData['userType'] = notification.userType;
+      } else if (userType) {
+        notificationData['userType'] = userType;
+      }
+
       const message = {
         notification: {
           title: notification.title,
           body: notification.message,
         },
-        data: {
-          notificationId: notificationId,
-          type: notification.type || "general",
-          title: notification.title,
-          body: notification.message,
-          userId: notification.userId,
-          ...notification.data,
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+        data: notificationData,
         tokens: tokens,
         android: {
           priority: "high" as const,
@@ -127,59 +153,57 @@ export const sendPushNotification = onDocumentCreated(
         },
       };
 
+      logger.info(`📤 Sending multicast message to ${tokens.length} devices`);
+
       // Send the multicast message
       const response = await messaging.sendEachForMulticast(message);
 
-      logger.info("Successfully sent messages:", response);
+      logger.info(`✅ Successfully sent ${response.successCount} messages`);
+      logger.info(`❌ Failed to send ${response.failureCount} messages`);
 
       // Clean up invalid tokens
       if (response.failureCount > 0) {
         const failedTokens: string[] = [];
         response.responses.forEach((resp, idx) => {
           if (!resp.success) {
+            logger.error(`🚫 Token failed: ${tokens[idx].substring(0, 15)}..., Error: ${resp.error?.message}`);
             failedTokens.push(tokens[idx]);
           }
         });
 
         if (failedTokens.length > 0) {
-          logger.info("Cleaning up failed tokens:", failedTokens);
+          logger.info(`🧹 Cleaning up ${failedTokens.length} failed tokens`);
           await cleanupFailedTokens(notification.userId, failedTokens);
         }
       }
+
+      logger.info("🎉 Notification processing completed successfully");
+
     } catch (error) {
-      logger.error("Error sending push notification:", error);
+      logger.error("💥 Error sending push notification:", error);
     }
   }
 );
 
-// Additional Cloud Function: Send notification to specific user
+// Additional Cloud Functions (keep your existing ones)
 export const sendNotificationToUser = onCall(
   {
     enforceAppCheck: false,
     cors: true,
   },
   async (request) => {
-    // Check if user is authenticated
     if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "User must be authenticated"
-      );
+      throw new HttpsError("unauthenticated", "User must be authenticated");
     }
 
     const data = request.data as SendNotificationData;
     const {userId, title, message, type = "general", additionalData = {}} = data;
 
-    // Validate required fields
     if (!userId || !title || !message) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Missing required fields: userId, title, message"
-      );
+      throw new HttpsError("invalid-argument", "Missing required fields: userId, title, message");
     }
 
     try {
-      // Create notification in Firestore
       const firestore = getFirestore();
       const notificationRef = await firestore
         .collection("notifications")
@@ -191,9 +215,10 @@ export const sendNotificationToUser = onCall(
           data: additionalData,
           read: false,
           createdAt: FieldValue.serverTimestamp(),
+          userType: additionalData['userType'] as string || 'customer',
         });
 
-      logger.info(`Notification created with ID: ${notificationRef.id}`);
+      logger.info(`📝 Notification created with ID: ${notificationRef.id} for user: ${userId}`);
 
       return {
         success: true,
@@ -202,83 +227,12 @@ export const sendNotificationToUser = onCall(
       };
     } catch (error) {
       logger.error("Error creating notification:", error);
-      throw new HttpsError(
-        "internal",
-        "Failed to send notification"
-      );
+      throw new HttpsError("internal", "Failed to send notification");
     }
   }
 );
 
-// Cloud Function: Send notification to multiple users
-export const sendBroadcastNotification = onCall(
-  {
-    enforceAppCheck: false,
-    cors: true,
-  },
-  async (request) => {
-    // Check if user is admin
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "User must be authenticated"
-      );
-    }
-
-    const data = request.data as BroadcastNotificationData;
-    const {title, message, userType = "all", additionalData = {}} = data;
-
-    if (!title || !message) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Missing required fields: title, message"
-      );
-    }
-
-    try {
-      const firestore = getFirestore();
-      let usersQuery: FirebaseFirestore.Query = firestore.collection("users");
-
-      // Filter by user type if specified
-      if (userType !== "all") {
-        usersQuery = usersQuery.where("userType", "==", userType);
-      }
-
-      const usersSnapshot = await usersQuery.get();
-
-      const batch = firestore.batch();
-      const notificationsCollection = firestore.collection("notifications");
-
-      usersSnapshot.docs.forEach((userDoc) => {
-        const notificationRef = notificationsCollection.doc();
-        batch.set(notificationRef, {
-          userId: userDoc.id,
-          title: title,
-          message: message,
-          type: "broadcast",
-          data: additionalData,
-          read: false,
-          createdAt: FieldValue.serverTimestamp(),
-        });
-      });
-
-      await batch.commit();
-
-      return {
-        success: true,
-        message: `Notification sent to ${usersSnapshot.size} users`,
-      };
-    } catch (error) {
-      logger.error("Error sending broadcast notification:", error);
-      throw new HttpsError(
-        "internal",
-        "Failed to send broadcast notification"
-      );
-    }
-  }
-);
-
-// Simple test function to verify deployment
+// Simple test function
 export const testNotificationFunction = onCall(
   {
     enforceAppCheck: false,

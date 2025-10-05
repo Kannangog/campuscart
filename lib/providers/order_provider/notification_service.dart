@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -193,32 +195,6 @@ class NotificationService {
       return false;
     }
   }
-  // Add this to your NotificationService class
-Future<bool> saveFCMTokenForNonAuthUser(String userId, {required String userType}) async {
-  try {
-    print('💾 Saving FCM token for non-auth user: $userId');
-    
-    final token = await _messaging.getToken();
-    
-    if (token != null && token.isNotEmpty) {
-      // Only save to users collection for non-auth users
-      await _firestore.collection('users').doc(userId).set({
-        'fcmTokens': FieldValue.arrayUnion([token]),
-        'userType': userType,
-        'updatedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
-      
-      print('✅ FCM token saved for non-auth user: $userId');
-      return true;
-    } else {
-      print('❌ No FCM token available for user: $userId');
-      return false;
-    }
-  } catch (e) {
-    print('❌ Error saving FCM token for non-auth user: $e');
-    return false;
-  }
-}
 
   // Verify that the token was saved correctly
   Future<bool> _verifyTokenSaved(String userId, String expectedToken) async {
@@ -285,7 +261,7 @@ Future<bool> saveFCMTokenForNonAuthUser(String userId, {required String userType
         print('✅ Found ${userTokens.length} FCM tokens for user: $userId');
       }
       
-      // Save notification to Firestore (this will trigger your Cloud Function)
+      // ✅ FIXED: Create only ONE notification document
       await _firestore.collection('notifications').add({
         'userId': userId,
         'title': title,
@@ -298,7 +274,7 @@ Future<bool> saveFCMTokenForNonAuthUser(String userId, {required String userType
         'hasTokens': userTokens.isNotEmpty,
       });
       
-      print('✅ Notification document created for user: $userId');
+      print('✅ Single notification document created for user: $userId');
       print('   Title: $title, Message: $message, Type: $type');
       print('   User has tokens: ${userTokens.isNotEmpty}');
       

@@ -2,7 +2,7 @@
 
 
 import 'package:campuscart/providers/order_location_provider.dart';
-import 'package:campuscart/screens/restaurant/orders_management/orders_management_screen.dart';
+import 'package:campuscart/screens/restaurant/orders_management/orders_management_screen.dart' hide restaurantOrdersProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:campuscart/models/order_model.dart';

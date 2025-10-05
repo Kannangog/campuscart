@@ -1,9 +1,9 @@
 // ignore_for_file: deprecated_member_use, unused_result
 
 import 'package:campuscart/providers/auth_provider.dart';
-import 'package:campuscart/providers/order_location_provider.dart';
-
+import 'package:campuscart/providers/order_provider/order_management_service.dart';
 import 'package:campuscart/providers/restaurant_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -11,7 +11,7 @@ import 'package:campuscart/models/restaurant_model.dart';
 import 'package:campuscart/models/order_model.dart';
 import 'orders_tab_view.dart';
 
-// Create a provider for the selected restaurant to avoid repeated computation
+// Create a provider for the selected restaurant
 final selectedRestaurantProvider = Provider<RestaurantModel?>((ref) {
   final authState = ref.watch(authStateProvider);
   final user = authState.value;
@@ -22,6 +22,20 @@ final selectedRestaurantProvider = Provider<RestaurantModel?>((ref) {
     data: (restaurantList) => restaurantList.isNotEmpty ? restaurantList.first : null,
     orElse: () => null,
   );
+});
+
+// Provider for restaurant orders
+final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
+  ref.watch(orderManagementProvider);
+  
+  return FirebaseFirestore.instance
+      .collection('orders')
+      .where('restaurantId', isEqualTo: restaurantId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+          .map((doc) => OrderModel.fromFirestore(doc))
+          .toList());
 });
 
 // Provider for date filter selection
@@ -40,37 +54,42 @@ final filteredOrdersProvider = Provider<List<OrderModel>>((ref) {
   return ordersAsync.maybeWhen(
     data: (orders) {
       final now = DateTime.now();
-      DateTime startDate;
-      DateTime endDate;
       
       switch (dateFilter) {
         case DateFilter.today:
-          startDate = DateTime(now.year, now.month, now.day);
-          endDate = DateTime(now.year, now.month, now.day + 1);
-          break;
+          final today = DateTime(now.year, now.month, now.day);
+          final tomorrow = today.add(const Duration(days: 1));
+          return orders.where((order) => 
+            order.createdAt.isAfter(today) && order.createdAt.isBefore(tomorrow)
+          ).toList();
+          
         case DateFilter.yesterday:
-          startDate = DateTime(now.year, now.month, now.day - 1);
-          endDate = DateTime(now.year, now.month, now.day);
-          break;
+          final yesterday = DateTime(now.year, now.month, now.day - 1);
+          final today = DateTime(now.year, now.month, now.day);
+          return orders.where((order) => 
+            order.createdAt.isAfter(yesterday) && order.createdAt.isBefore(today)
+          ).toList();
+          
         case DateFilter.last7Days:
-          startDate = now.subtract(const Duration(days: 7));
-          endDate = now.add(const Duration(days: 1));
-          break;
+          final weekAgo = now.subtract(const Duration(days: 7));
+          return orders.where((order) => order.createdAt.isAfter(weekAgo)).toList();
+          
         case DateFilter.thisMonth:
-          startDate = DateTime(now.year, now.month, 1);
-          endDate = DateTime(now.year, now.month + 1, 1);
-          break;
+          final monthStart = DateTime(now.year, now.month, 1);
+          return orders.where((order) => order.createdAt.isAfter(monthStart)).toList();
+          
         case DateFilter.all:
-          return orders.whereType<OrderModel>().toList(); // Ensure only OrderModel is returned
+          return orders;
       }
-      
-      return orders.where((order) {
-        return order is OrderModel &&
-            order.createdAt.isAfter(startDate) &&
-            order.createdAt.isBefore(endDate);
-      }).cast<OrderModel>().toList();
     },
-    orElse: () => [],
+    loading: () => [],
+    error: (error, stack) {
+      print('Error loading orders: $error');
+      return [];
+    }, 
+    orElse: () { 
+      return [];
+    },
   );
 });
 
@@ -212,27 +231,123 @@ class _OrdersManagementScreenState extends ConsumerState<OrdersManagementScreen>
 
   Widget _buildOrdersContent(RestaurantModel restaurant) {
     final filteredOrders = ref.watch(filteredOrdersProvider);
+    final ordersAsync = ref.watch(restaurantOrdersProvider(restaurant.id));
     
-    return TabBarView(
-      controller: _tabController,
-      children: [
-        OrdersTabView(
-          orders: filteredOrders,
-          statuses: const [OrderStatus.pending, OrderStatus.confirmed],
-        ),
-        OrdersTabView(
-          orders: filteredOrders,
-          statuses: const [OrderStatus.preparing],
-        ),
-        OrdersTabView(
-          orders: filteredOrders,
-          statuses: const [OrderStatus.ready, OrderStatus.outForDelivery],
-        ),
-        OrdersTabView(
-          orders: filteredOrders,
-          statuses: const [OrderStatus.delivered, OrderStatus.cancelled],
-        ),
-      ],
+    return ordersAsync.when(
+      data: (orders) {
+        print('📦 Total orders loaded: ${orders.length}');
+        print('🔍 Filtered orders: ${filteredOrders.length}');
+        
+        if (filteredOrders.isEmpty) {
+          return _buildEmptyOrdersState();
+        }
+        
+        return TabBarView(
+          controller: _tabController,
+          children: [
+            OrdersTabView(
+              orders: _filterOrdersByStatus(filteredOrders, [OrderStatus.pending, OrderStatus.confirmed]),
+              statuses: const [OrderStatus.pending, OrderStatus.confirmed],
+            ),
+            OrdersTabView(
+              orders: _filterOrdersByStatus(filteredOrders, [OrderStatus.preparing]),
+              statuses: const [OrderStatus.preparing],
+            ),
+            OrdersTabView(
+              orders: _filterOrdersByStatus(filteredOrders, [OrderStatus.ready, OrderStatus.outForDelivery]),
+              statuses: const [OrderStatus.ready, OrderStatus.outForDelivery],
+            ),
+            OrdersTabView(
+              orders: _filterOrdersByStatus(filteredOrders, [OrderStatus.delivered, OrderStatus.cancelled]),
+              statuses: const [OrderStatus.delivered, OrderStatus.cancelled],
+            ),
+          ],
+        );
+      },
+      loading: () => _buildLoadingState(),
+      error: (error, stack) => _buildErrorState(error, restaurant.id),
+    );
+  }
+
+  List<OrderModel> _filterOrdersByStatus(List<OrderModel> orders, List<OrderStatus> statuses) {
+    return orders.where((order) => statuses.contains(order.status)).toList();
+  }
+
+  Widget _buildEmptyOrdersState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 80,
+            color: Colors.grey.shade400,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Orders Found',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Orders will appear here when customers place them',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              ref.refresh(restaurantOrdersProvider(ref.read(selectedRestaurantProvider)!.id));
+            },
+            child: const Text('Refresh'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return const Center(
+      child: CircularProgressIndicator(),
+    );
+  }
+
+  Widget _buildErrorState(dynamic error, String restaurantId) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Error Loading Orders',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: Text(
+              error.toString(),
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              ref.refresh(restaurantOrdersProvider(restaurantId));
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
     );
   }
 

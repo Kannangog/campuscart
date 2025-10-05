@@ -1,8 +1,7 @@
 import 'package:campuscart/models/order_model.dart';
 import 'package:campuscart/providers/auth_provider.dart';
-import 'package:campuscart/providers/order_location_provider.dart';
+import 'package:campuscart/providers/order_provider/firestore_error_handler.dart';
 import 'package:campuscart/providers/order_provider/order_management_service.dart';
-
 import 'package:campuscart/screens/user/order_screen/order_card_widget.dart.dart';
 import 'package:campuscart/screens/user/order_screen/order_details_widget.dart.dart';
 import 'package:flutter/material.dart';
@@ -20,23 +19,13 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   String _selectedTimeFilter = 'All';
   String? _selectedStatusFilter;
   
-  final List<String> _timeFilterOptions = [
-    'All',
-    'Today',
-    'Yesterday',
-    'Last 7 days',
-    'This month'
-  ];
-  
+  final List<String> _timeFilterOptions = ['All', 'Today', 'Last 7 days', 'This month'];
   final List<String> _statusFilterOptions = [
-    'Pending',
-    'Confirmed',
-    'Preparing',
-    'Ready',
-    'Out for Delivery',
-    'Delivered',
-    'Cancelled'
+    'Pending', 'Confirmed', 'Preparing', 'Ready', 
+    'Out for Delivery', 'Delivered', 'Cancelled'
   ];
+
+  bool _hasActiveFilters() => _selectedTimeFilter != 'All' || _selectedStatusFilter != null;
 
   @override
   Widget build(BuildContext context) {
@@ -44,12 +33,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     final user = authState.value;
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Please login to view orders')),
-      );
+      return _buildLoginRequired();
     }
 
-    final orders = ref.watch(userOrdersProvider(user.uid));
+    final ordersAsync = ref.watch(userOrdersProvider(user.uid));
 
     return Scaffold(
       appBar: AppBar(
@@ -64,44 +51,14 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         backgroundColor: Colors.lightGreen,
         elevation: 4,
         iconTheme: const IconThemeData(color: Colors.white),
-        // Only show filter button when there are orders
         actions: [
-          orders.when(
-            data: (orderList) {
-              if (orderList.isEmpty) return const SizedBox.shrink();
-              
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.filter_list_rounded, size: 28),
-                    onPressed: () => _showFilterDialog(context),
-                    color: Colors.white,
-                  ),
-                  if (_selectedTimeFilter != 'All' || _selectedStatusFilter != null)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.orange,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Text(
-                          '!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
+          // Filter button with badge
+          ordersAsync.when(
+            data: (orders) => orders.isEmpty 
+                ? const SizedBox.shrink()
+                : _buildFilterButton(),
             loading: () => const SizedBox.shrink(),
-            error: (error, stack) => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -111,305 +68,465 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFE8F5E9), // Very light green
-              Color(0xFFF1F8E9), // Even lighter green
+              Color(0xFFE8F5E9),
+              Color(0xFFF1F8E9),
               Colors.white,
             ],
             stops: [0.0, 0.3, 0.7],
           ),
         ),
-        child: orders.when(
-          data: (orderList) {
-            // Sort orders by most recent first
-            orderList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            
-            // Filter orders based on selected filters
-            final filteredOrders = _filterOrders(orderList.cast<OrderModel>(), _selectedTimeFilter, _selectedStatusFilter);
-            
-            if (filteredOrders.isEmpty) {
-              // Show empty state with filter info if filters are active
-              if (_selectedTimeFilter != 'All' || _selectedStatusFilter != null) {
-                return _buildEmptyFilteredOrders(context);
-              }
-              return _buildEmptyOrders(context);
-            }
-
-            return Column(
-              children: [
-                // Active filters indicator
-                if (_selectedTimeFilter != 'All' || _selectedStatusFilter != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.lightGreen.shade50,
-                      border: const Border(bottom: BorderSide(color: Colors.green, width: 1)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.filter_alt, size: 18, color: Colors.green),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Active filters:',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                if (_selectedTimeFilter != 'All')
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8.0),
-                                    child: Chip(
-                                      label: Text(
-                                        _selectedTimeFilter,
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                      backgroundColor: Colors.lightGreen.shade100,
-                                      deleteIcon: const Icon(Icons.close, size: 16),
-                                      onDeleted: () {
-                                        setState(() {
-                                          _selectedTimeFilter = 'All';
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                if (_selectedStatusFilter != null)
-                                  Chip(
-                                    label: Text(
-                                      _selectedStatusFilter!,
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    backgroundColor: Colors.lightGreen.shade100,
-                                    deleteIcon: const Icon(Icons.close, size: 16),
-                                    onDeleted: () {
-                                      setState(() {
-                                        _selectedStatusFilter = null;
-                                      });
-                                    },
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _selectedTimeFilter = 'All';
-                              _selectedStatusFilter = null;
-                            });
-                          },
-                          child: const Text(
-                            'Clear all',
-                            style: TextStyle(color: Colors.green),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                
-                // Filter chip bar with improved design
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  color: Colors.lightGreen.shade50,
-                  child: Column(
-                    children: [
-                      // Time filters
-                      SizedBox(
-                        height: 40,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: _timeFilterOptions.map((filter) {
-                              return Container(
-                                margin: const EdgeInsets.only(right: 8.0),
-                                child: FilterChip(
-                                  label: Text(
-                                    filter,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: _selectedTimeFilter == filter 
-                                        ? Colors.white 
-                                        : Colors.green,
-                                    ),
-                                  ),
-                                  selected: _selectedTimeFilter == filter,
-                                  selectedColor: Colors.lightGreen,
-                                  checkmarkColor: Colors.white,
-                                  backgroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    side: BorderSide(
-                                      color: _selectedTimeFilter == filter 
-                                        ? Colors.lightGreen 
-                                        : Colors.green.shade200,
-                                    ),
-                                  ),
-                                  onSelected: (bool selected) {
-                                    setState(() {
-                                      _selectedTimeFilter = selected ? filter : 'All';
-                                    });
-                                  },
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Status filters
-                      SizedBox(
-                        height: 40,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: _statusFilterOptions.map((filter) {
-                              return Container(
-                                margin: const EdgeInsets.only(right: 8.0),
-                                child: FilterChip(
-                                  label: Text(
-                                    filter,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: _selectedStatusFilter == filter 
-                                        ? Colors.white 
-                                        : Colors.green,
-                                    ),
-                                  ),
-                                  selected: _selectedStatusFilter == filter,
-                                  selectedColor: Colors.lightGreen,
-                                  checkmarkColor: Colors.white,
-                                  backgroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    side: BorderSide(
-                                      color: _selectedStatusFilter == filter 
-                                        ? Colors.lightGreen 
-                                        : Colors.green.shade200,
-                                    ),
-                                  ),
-                                  onSelected: (bool selected) {
-                                    setState(() {
-                                      _selectedStatusFilter = selected ? filter : null;
-                                    });
-                                  },
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 4),
-                
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filteredOrders.length,
-                    itemBuilder: (context, index) {
-                      final order = filteredOrders[index];
-                      return OrderCardWidget(
-                        order: order,
-                        index: index,
-                        onViewDetails: () => _showOrderDetails(context, order),
-                        onCancelOrder: () => _showCancelOrderDialog(context, ref, order),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
-          },
-          loading: () => const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.lightGreen),
-            ),
-          ),
-          error: (error, stack) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error, size: 64, color: Colors.lightGreen),
-                const SizedBox(height: 16),
-                Text(
-                  'Error loading orders',
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Text(
-                    error.toString(),
-                    style: TextStyle(color: Colors.grey.shade600),
-                    textAlign: TextAlign.center,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => ref.refresh(userOrdersProvider(user.uid)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.lightGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        child: ordersAsync.when(
+          data: (orders) => _buildOrderList(orders),
+          loading: () => _buildLoading(),
+          error: (error, stack) => _buildError(error, user.uid),
         ),
       ),
     );
   }
 
-  List<OrderModel> _filterOrders(List<OrderModel> orders, String timeFilter, String? statusFilter) {
-    // First apply time filter
-    List<OrderModel> filtered = _applyTimeFilter(orders, timeFilter);
+  Widget _buildFilterButton() {
+    return Stack(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.filter_list_rounded, size: 28),
+          onPressed: _showFilterDialog,
+          color: Colors.white,
+        ),
+        if (_hasActiveFilters())
+          Positioned(
+            right: 8,
+            top: 8,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.orange,
+                shape: BoxShape.circle,
+              ),
+              child: const Text(
+                '!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOrderList(List<OrderModel> orders) {
+    // Sort by most recent first
+    orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     
-    // Then apply status filter if selected
+    // Apply filters
+    final filteredOrders = _filterOrders(orders, _selectedTimeFilter, _selectedStatusFilter);
+    
+    if (filteredOrders.isEmpty) {
+      return _hasActiveFilters() 
+          ? _buildEmptyFilteredState() 
+          : _buildEmptyState();
+    }
+
+    return Column(
+      children: [
+        // Active filters bar
+        if (_hasActiveFilters()) _buildActiveFiltersBar(),
+        
+        // Filter chips
+        _buildFilterChips(),
+        
+        // Orders list
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: filteredOrders.length,
+            itemBuilder: (context, index) {
+              final order = filteredOrders[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: OrderCardWidget(
+                  order: order,
+                  index: index,
+                  onViewDetails: () => _showOrderDetails(context, order),
+                  onCancelOrder: () => _showCancelOrderDialog(context, ref, order),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActiveFiltersBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.lightGreen.shade50,
+        border: const Border(bottom: BorderSide(color: Colors.green, width: 1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.filter_alt, size: 18, color: Colors.green),
+          const SizedBox(width: 8),
+          const Text(
+            'Filters:',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (_selectedTimeFilter != 'All')
+                    _buildFilterChip(
+                      _selectedTimeFilter,
+                      onDelete: () => setState(() => _selectedTimeFilter = 'All'),
+                    ),
+                  if (_selectedStatusFilter != null)
+                    _buildFilterChip(
+                      _selectedStatusFilter!,
+                      onDelete: () => setState(() => _selectedStatusFilter = null),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => setState(() {
+              _selectedTimeFilter = 'All';
+              _selectedStatusFilter = null;
+            }),
+            child: const Text(
+              'Clear all',
+              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, {required VoidCallback onDelete}) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: Chip(
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 12),
+        ),
+        backgroundColor: Colors.lightGreen.shade100,
+        deleteIcon: const Icon(Icons.close, size: 16),
+        onDeleted: onDelete,
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      color: Colors.lightGreen.shade50,
+      child: Column(
+        children: [
+          // Time filters
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: _timeFilterOptions.map((filter) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(
+                      filter,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _selectedTimeFilter == filter 
+                            ? Colors.white 
+                            : Colors.green,
+                      ),
+                    ),
+                    selected: _selectedTimeFilter == filter,
+                    selectedColor: Colors.lightGreen,
+                    checkmarkColor: Colors.white,
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: _selectedTimeFilter == filter 
+                            ? Colors.lightGreen 
+                            : Colors.green.shade200,
+                      ),
+                    ),
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedTimeFilter = selected ? filter : 'All';
+                      });
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Status filters
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: _statusFilterOptions.map((filter) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(
+                      filter,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _selectedStatusFilter == filter 
+                            ? Colors.white 
+                            : Colors.green,
+                      ),
+                    ),
+                    selected: _selectedStatusFilter == filter,
+                    selectedColor: Colors.lightGreen,
+                    checkmarkColor: Colors.white,
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: _selectedStatusFilter == filter 
+                            ? Colors.lightGreen 
+                            : Colors.green.shade200,
+                      ),
+                    ),
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedStatusFilter = selected ? filter : null;
+                      });
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 120,
+              color: Colors.lightGreen.shade300,
+            ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
+            
+            const SizedBox(height: 24),
+            
+            Text(
+              'No orders yet',
+              style: TextStyle(
+                color: Colors.lightGreen.shade700,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ).animate().fadeIn(delay: 200.ms),
+            
+            const SizedBox(height: 12),
+            
+            Text(
+              'When you place orders, they\'ll appear here',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ).animate().fadeIn(delay: 400.ms),
+            
+            const SizedBox(height: 32),
+            
+            ElevatedButton.icon(
+              onPressed: () => DefaultTabController.of(context).animateTo(1),
+              icon: const Icon(Icons.restaurant),
+              label: const Text('Start Ordering'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.lightGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ).animate().fadeIn(delay: 600.ms),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyFilteredState() {
+    return Column(
+      children: [
+        if (_hasActiveFilters()) _buildActiveFiltersBar(),
+        Expanded(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.search_off_rounded,
+                    size: 100,
+                    color: Colors.lightGreen.shade300,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'No orders found',
+                    style: TextStyle(
+                      color: Colors.lightGreen.shade700,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No orders match your current filters',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => setState(() {
+                      _selectedTimeFilter = 'All';
+                      _selectedStatusFilter = null;
+                    }),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.lightGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Clear Filters'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoading() {
+    return const Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(Colors.lightGreen),
+      ),
+    );
+  }
+
+  Widget _buildError(dynamic error, String userId) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, size: 64, color: Colors.lightGreen),
+            const SizedBox(height: 16),
+            Text(
+              'Error loading orders',
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                error.toString(),
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => ref.refresh(userOrdersProvider(userId)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.lightGreen,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginRequired() {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.login, size: 64, color: Colors.lightGreen),
+            const SizedBox(height: 16),
+            const Text(
+              'Please login to view orders',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Filter methods
+  List<OrderModel> _filterOrders(List<OrderModel> orders, String timeFilter, String? statusFilter) {
+    List<OrderModel> filtered = _applyTimeFilter(orders, timeFilter);
     if (statusFilter != null) {
       filtered = _applyStatusFilter(filtered, statusFilter);
     }
-    
     return filtered;
   }
 
   List<OrderModel> _applyTimeFilter(List<OrderModel> orders, String filter) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
     final weekAgo = today.subtract(const Duration(days: 7));
     final monthStart = DateTime(now.year, now.month, 1);
 
     switch (filter) {
       case 'Today':
         return orders.where((order) {
-          final orderDate = DateTime(
-            order.createdAt.year,
-            order.createdAt.month,
-            order.createdAt.day,
-          );
+          final orderDate = DateTime(order.createdAt.year, order.createdAt.month, order.createdAt.day);
           return orderDate == today;
-        }).toList();
-      case 'Yesterday':
-        return orders.where((order) {
-          final orderDate = DateTime(
-            order.createdAt.year,
-            order.createdAt.month,
-            order.createdAt.day,
-          );
-          return orderDate == yesterday;
         }).toList();
       case 'Last 7 days':
         return orders.where((order) => order.createdAt.isAfter(weekAgo)).toList();
@@ -421,227 +538,20 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   }
 
   List<OrderModel> _applyStatusFilter(List<OrderModel> orders, String statusFilter) {
-    OrderStatus status;
+    final statusMap = {
+      'Pending': OrderStatus.pending,
+      'Confirmed': OrderStatus.confirmed,
+      'Preparing': OrderStatus.preparing,
+      'Ready': OrderStatus.ready,
+      'Out for Delivery': OrderStatus.outForDelivery,
+      'Delivered': OrderStatus.delivered,
+      'Cancelled': OrderStatus.cancelled,
+    };
     
-    switch (statusFilter) {
-      case 'Pending':
-        status = OrderStatus.pending;
-        break;
-      case 'Confirmed':
-        status = OrderStatus.confirmed;
-        break;
-      case 'Preparing':
-        status = OrderStatus.preparing;
-        break;
-      case 'Ready':
-        status = OrderStatus.ready;
-        break;
-      case 'Out for Delivery':
-        status = OrderStatus.outForDelivery;
-        break;
-      case 'Delivered':
-        status = OrderStatus.delivered;
-        break;
-      case 'Cancelled':
-        status = OrderStatus.cancelled;
-        break;
-      default:
-        return orders;
-    }
-    
-    return orders.where((order) => order.status == status).toList();
-  }
-
-  Widget _buildEmptyOrders(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 120,
-            color: Colors.lightGreen.shade300,
-          ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
-          
-          const SizedBox(height: 24),
-          
-          Text(
-            'No orders yet',
-            style: TextStyle(
-              color: Colors.lightGreen.shade700,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
-          
-          const SizedBox(height: 12),
-          
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40.0),
-            child: Text(
-              'When you place orders, they\'ll appear here',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ).animate().fadeIn(delay: 400.ms),
-          
-          const SizedBox(height: 32),
-          
-          ElevatedButton.icon(
-            onPressed: () {
-              // Navigate to restaurants screen
-              DefaultTabController.of(context).animateTo(1);
-            },
-            icon: const Icon(Icons.restaurant),
-            label: const Text('Start Ordering'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.lightGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.3),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyFilteredOrders(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Active filters indicator (for empty filtered state)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.lightGreen.shade50,
-            border: const Border(bottom: BorderSide(color: Colors.green, width: 1)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.filter_alt, size: 18, color: Colors.green),
-              const SizedBox(width: 8),
-              const Text(
-                'Active filters:',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      if (_selectedTimeFilter != 'All')
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Chip(
-                            label: Text(
-                              _selectedTimeFilter,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            backgroundColor: Colors.lightGreen.shade100,
-                            deleteIcon: const Icon(Icons.close, size: 16),
-                            onDeleted: () {
-                              setState(() {
-                                _selectedTimeFilter = 'All';
-                              });
-                            },
-                          ),
-                        ),
-                      if (_selectedStatusFilter != null)
-                        Chip(
-                          label: Text(
-                            _selectedStatusFilter!,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          backgroundColor: Colors.lightGreen.shade100,
-                          deleteIcon: const Icon(Icons.close, size: 16),
-                          onDeleted: () {
-                            setState(() {
-                              _selectedStatusFilter = null;
-                            });
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _selectedTimeFilter = 'All';
-                    _selectedStatusFilter = null;
-                  });
-                },
-                child: const Text(
-                  'Clear all',
-                  style: TextStyle(color: Colors.green),
-                ),
-              ),
-            ],
-          ),
-        ),
-        
-        // Empty state content
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.search_off_rounded,
-                  size: 100,
-                  color: Colors.lightGreen.shade300,
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'No orders found',
-                  style: TextStyle(
-                    color: Colors.lightGreen.shade700,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40.0),
-                  child: Text(
-                    'No orders match your current filters',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 16,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _selectedTimeFilter = 'All';
-                      _selectedStatusFilter = null;
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.lightGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Clear Filters'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+    final status = statusMap[statusFilter];
+    return status != null 
+        ? orders.where((order) => order.status == status).toList()
+        : orders;
   }
 
   void _showOrderDetails(BuildContext context, OrderModel order) {
@@ -673,19 +583,20 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               decoration: const InputDecoration(
                 labelText: 'Reason for cancellation',
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              maxLines: 3,
+              maxLines: 2,
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('No'),
+            child: const Text('Keep Order'),
           ),
           ElevatedButton(
             onPressed: () {
-              if (reasonController.text.isEmpty) {
+              if (reasonController.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Please provide a reason for cancellation'),
@@ -695,8 +606,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 return;
               }
               
-              // Cancel order logic using orderManagementProvider
-              ref.read(orderManagementProvider).cancelOrder(order.id, reasonController.text);
+              ref.read(orderManagementProvider).cancelOrder(order.id, reasonController.text.trim());
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -709,19 +619,19 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Yes, Cancel'),
+            child: const Text('Cancel Order'),
           ),
         ],
       ),
     );
   }
 
-  void _showFilterDialog(BuildContext context) {
+  void _showFilterDialog() {
     showDialog(
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -731,7 +641,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 'Filter Orders',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               const Text(
                 'Time Period',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -746,16 +656,14 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                     selected: _selectedTimeFilter == filter,
                     selectedColor: Colors.lightGreen,
                     checkmarkColor: Colors.white,
-                    onSelected: (bool selected) {
-                      setState(() {
-                        _selectedTimeFilter = selected ? filter : 'All';
-                      });
+                    onSelected: (selected) {
+                      setState(() => _selectedTimeFilter = selected ? filter : 'All');
                       Navigator.of(context).pop();
                     },
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               const Text(
                 'Order Status',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -770,10 +678,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                     selected: _selectedStatusFilter == filter,
                     selectedColor: Colors.lightGreen,
                     checkmarkColor: Colors.white,
-                    onSelected: (bool selected) {
-                      setState(() {
-                        _selectedStatusFilter = selected ? filter : null;
-                      });
+                    onSelected: (selected) {
+                      setState(() => _selectedStatusFilter = selected ? filter : null);
                       Navigator.of(context).pop();
                     },
                   );
@@ -800,7 +706,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                       backgroundColor: Colors.lightGreen,
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Apply'),
+                    child: const Text('Close'),
                   ),
                 ],
               ),

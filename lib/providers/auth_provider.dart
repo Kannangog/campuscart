@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:campuscart/models/restaurant_model.dart';
 import 'package:campuscart/models/user_model.dart';
 import 'package:campuscart/providers/notification_provider.dart';
@@ -115,7 +117,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       
       // Ensure notification service is initialized
       await notificationService.initialize();
-      await Future.delayed(Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 2));
       
       // Get current FCM token
       final token = await FirebaseMessaging.instance.getToken();
@@ -143,7 +145,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
         }
         
         if (attempt < 5) {
-          await Future.delayed(Duration(seconds: 2));
+          await Future.delayed(const Duration(seconds: 2));
         }
       }
       
@@ -207,7 +209,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       print('✅ DIRECT SAVE: Batch committed successfully');
       
       // Wait for Firestore
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 1));
       
       return true;
     } catch (e) {

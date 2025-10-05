@@ -2,6 +2,7 @@
 
 import 'dart:io';
 
+import 'package:campuscart/models/order_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -43,6 +44,18 @@ final restaurantsByOwnerProvider = StreamProvider.family<List<RestaurantModel>, 
       .snapshots()
       .map((snapshot) => snapshot.docs
           .map((doc) => RestaurantModel.fromFirestore(doc))
+          .toList());
+});
+
+// FIXED: Added proper restaurant orders provider
+final restaurantOrdersProvider = StreamProvider.family<List<OrderModel>, String>((ref, restaurantId) {
+  return FirebaseFirestore.instance
+      .collection('orders')
+      .where('restaurantId', isEqualTo: restaurantId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+          .map((doc) => OrderModel.fromFirestore(doc))
           .toList());
 });
 
@@ -121,7 +134,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
     required String email,
     File? imageFile,
     Map<String, String>? openingHours,
-    required String openingTime,
+    required String openingTime, // FIXED: Added required parameters
     required String closingTime,
   }) async {
     try {
@@ -148,7 +161,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       final restaurantId = generateRestaurantId();
       
-      // Create restaurant model
+      // Create restaurant model - FIXED: Use proper constructor
       final restaurant = RestaurantModel(
         id: restaurantId,
         ownerId: user.uid,
@@ -187,7 +200,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
           .set({
             'restaurantId': restaurantId,
             'hasRestaurant': true,
-            'updatedAt': Timestamp.fromDate(DateTime.now()),
+            'updatedAt': Timestamp.now(),
           }, SetOptions(merge: true));
       
       print('User document updated successfully');
@@ -215,7 +228,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         updates['imageUrl'] = imageUrl;
       }
       
-      updates['updatedAt'] = Timestamp.fromDate(DateTime.now());
+      updates['updatedAt'] = Timestamp.now();
       
       await _firestore
           .collection('restaurants')
@@ -236,7 +249,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       await _firestore.collection('restaurants').doc(restaurantId).update({
         'isApproved': true,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.now(),
       });
       
       state = const AsyncValue.data(null);
@@ -252,7 +265,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       await _firestore.collection('restaurants').doc(restaurantId).update({
         'isApproved': false,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.now(),
       });
       
       state = const AsyncValue.data(null);
@@ -268,7 +281,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       
       await _firestore.collection('restaurants').doc(restaurantId).update({
         'isOpen': isOpen,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.now(),
       });
       
       state = const AsyncValue.data(null);
@@ -371,7 +384,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
           .update({
             'restaurantId': FieldValue.delete(),
             'hasRestaurant': false,
-            'updatedAt': Timestamp.fromDate(DateTime.now()),
+            'updatedAt': Timestamp.now(),
           });
       
       print('User ${user.uid} document updated after restaurant deletion');
@@ -464,7 +477,7 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
         ordersBatch.update(doc.reference, {
           'status': 'cancelled',
           'cancellationReason': 'Restaurant deleted',
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
+          'updatedAt': Timestamp.now(),
         });
       }
       
@@ -534,12 +547,28 @@ class RestaurantManagementNotifier extends StateNotifier<AsyncValue<void>> {
       // Force update the user document to ensure consistency
       await _firestore.collection('users').doc(userId).update({
         'hasRestaurant': hasRestaurant,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.now(),
       });
       
       print('Refreshed restaurant status for user $userId: $hasRestaurant');
     } catch (e) {
       print('Error refreshing user restaurant status: $e');
+    }
+  }
+
+  // FIXED: Added method to get restaurant orders
+  Future<List<OrderModel>> getRestaurantOrders(String restaurantId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('orders')
+          .where('restaurantId', isEqualTo: restaurantId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      print('Error getting restaurant orders: $e');
+      rethrow;
     }
   }
 }

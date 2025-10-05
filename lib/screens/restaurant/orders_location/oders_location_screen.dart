@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../providers/auth_provider.dart';
-import '../../../providers/restaurant_provider.dart';
+import '../../../providers/restaurant_provider.dart' hide restaurantOrdersProvider;
 import '../../../models/order_model.dart';
 
 class OrdersLocation extends ConsumerStatefulWidget {
@@ -66,7 +66,7 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
             
             final restaurant = restaurantList.first;
             final orders = ref.watch(restaurantOrdersProvider(restaurant.id));
-            
+
             return orders.when(
               data: (orderList) {
                 final deliveryOrders = orderList.where((order) => 
