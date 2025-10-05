@@ -1,6 +1,8 @@
 import 'package:campuscart/models/order_model.dart';
 import 'package:campuscart/providers/auth_provider.dart';
-import 'package:campuscart/providers/order_provider.dart';
+import 'package:campuscart/providers/order_location_provider.dart';
+import 'package:campuscart/providers/order_provider/order_management_service.dart';
+
 import 'package:campuscart/screens/user/order_screen/order_card_widget.dart.dart';
 import 'package:campuscart/screens/user/order_screen/order_details_widget.dart.dart';
 import 'package:flutter/material.dart';
@@ -122,7 +124,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             orderList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             
             // Filter orders based on selected filters
-            final filteredOrders = _filterOrders(orderList, _selectedTimeFilter, _selectedStatusFilter);
+            final filteredOrders = _filterOrders(orderList.cast<OrderModel>(), _selectedTimeFilter, _selectedStatusFilter);
             
             if (filteredOrders.isEmpty) {
               // Show empty state with filter info if filters are active

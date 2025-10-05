@@ -204,6 +204,8 @@ class OrderLocationModel {
     }
   }
 
+  get order => null;
+
   static OrderLocationModel empty() {
     return OrderLocationModel(
       id: '',

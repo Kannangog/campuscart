@@ -1,6 +1,7 @@
 // ignore_for_file: unused_result
 
-import 'package:campuscart/providers/order_provider.dart';
+
+import 'package:campuscart/providers/order_location_provider.dart';
 import 'package:campuscart/screens/restaurant/orders_management/orders_management_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

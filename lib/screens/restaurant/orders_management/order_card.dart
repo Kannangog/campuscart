@@ -1,11 +1,13 @@
 // ignore_for_file: deprecated_member_use
 
+
+import 'package:campuscart/providers/order_provider/order_management_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:campuscart/models/order_model.dart';
-import 'package:campuscart/providers/order_provider.dart';
+
 
 class OrderCard extends ConsumerStatefulWidget {
   final OrderModel order;

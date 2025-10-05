@@ -1,6 +1,7 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, unrelated_type_equality_checks
 
 
+import 'package:campuscart/providers/order_location_provider.dart';
 import 'package:campuscart/screens/restaurant/orders_location/order_location_map.dart';
 import 'package:campuscart/screens/restaurant/orders_location/orders_location_panel.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/restaurant_provider.dart';
-import '../../../providers/order_provider.dart';
 import '../../../models/order_model.dart';
 
 class OrdersLocation extends ConsumerStatefulWidget {
@@ -79,7 +79,7 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
                   body: Stack(
                     children: [
                       OrdersLocationMap(
-                        orders: deliveryOrders,
+                        orders: deliveryOrders.cast<OrderModel>(),
                         restaurantLocation: const LatLng(37.422, -122.084),
                         onMapCreated: (controller) => _mapController = controller,
                         onOrderSelected: (order) {
@@ -89,7 +89,7 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
                       ),
                       
                       // Draggable panel
-                      _buildDraggablePanel(deliveryOrders, context),
+                      _buildDraggablePanel(deliveryOrders.cast<OrderModel>(), context),
                     ],
                   ),
                 );

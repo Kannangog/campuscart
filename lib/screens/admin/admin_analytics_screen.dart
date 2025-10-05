@@ -1,10 +1,10 @@
 // ignore_for_file: deprecated_member_use
 
+import 'package:campuscart/providers/order_provider/firestore_error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../providers/order_provider.dart';
 
 class AdminAnalyticsScreen extends ConsumerStatefulWidget {
   const AdminAnalyticsScreen({super.key});

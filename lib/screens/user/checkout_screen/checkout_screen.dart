@@ -2,7 +2,8 @@
 
 import 'package:campuscart/providers/auth_provider.dart';
 import 'package:campuscart/providers/cart_provider.dart';
-import 'package:campuscart/providers/order_provider.dart';
+import 'package:campuscart/providers/order_provider/order_management_service.dart';
+
 import 'package:campuscart/screens/user/checkout_screen/location_service.dart';
 import 'package:campuscart/screens/user/checkout_screen/order_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

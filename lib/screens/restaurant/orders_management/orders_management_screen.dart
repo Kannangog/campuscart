@@ -1,7 +1,8 @@
 // ignore_for_file: deprecated_member_use, unused_result
 
 import 'package:campuscart/providers/auth_provider.dart';
-import 'package:campuscart/providers/order_provider.dart';
+import 'package:campuscart/providers/order_location_provider.dart';
+
 import 'package:campuscart/providers/restaurant_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,12 +61,14 @@ final filteredOrdersProvider = Provider<List<OrderModel>>((ref) {
           endDate = DateTime(now.year, now.month + 1, 1);
           break;
         case DateFilter.all:
-          return orders; // Return all orders without filtering
+          return orders.whereType<OrderModel>().toList(); // Ensure only OrderModel is returned
       }
       
       return orders.where((order) {
-        return order.createdAt.isAfter(startDate) && order.createdAt.isBefore(endDate);
-      }).toList();
+        return order is OrderModel &&
+            order.createdAt.isAfter(startDate) &&
+            order.createdAt.isBefore(endDate);
+      }).cast<OrderModel>().toList();
     },
     orElse: () => [],
   );
