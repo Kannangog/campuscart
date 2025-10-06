@@ -12,12 +12,13 @@ final activeOrdersProvider = StreamProvider<List<OrderLocationModel>>((ref) {
         'confirmed',
         'preparing',
         'ready',
+        'readyForDelivery',
         'outForDelivery'
       ])
       .snapshots()
       .map((snapshot) => snapshot.docs
           .map((doc) => OrderLocationModel.fromFirestore(doc))
-          .where((order) => order.hasLocation) // Changed to use hasLocation
+          .where((order) => order.hasLocation)
           .toList())
       .handleError((error, stackTrace) {
         throw AsyncError(error, stackTrace);
@@ -33,7 +34,7 @@ final orderLocationProvider = StreamProvider.family<OrderLocationModel?, String>
       .map((snapshot) {
         if (!snapshot.exists) return null;
         final order = OrderLocationModel.fromFirestore(snapshot);
-        return order.hasLocation ? order : null; // Changed to use hasLocation
+        return order.hasLocation ? order : null;
       })
       .handleError((error, stackTrace) {
         throw AsyncError(error, stackTrace);
@@ -55,7 +56,7 @@ final userOrdersProvider = StreamProvider.family<List<OrderLocationModel>, Strin
       });
 });
 
-// Provider for restaurant's orders
+// Provider for restaurant's orders - FIXED: Removed location filter
 final restaurantOrdersProvider = StreamProvider.family<List<OrderLocationModel>, String>((ref, restaurantId) {
   return FirebaseFirestore.instance
       .collection('orders')
@@ -75,12 +76,12 @@ final driverOrdersProvider = StreamProvider.family<List<OrderLocationModel>, Str
   return FirebaseFirestore.instance
       .collection('orders')
       .where('driverId', isEqualTo: driverId)
-      .where('status', whereIn: ['outForDelivery', 'ready'])
+      .where('status', whereIn: ['outForDelivery', 'readyForDelivery'])
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((snapshot) => snapshot.docs
           .map((doc) => OrderLocationModel.fromFirestore(doc))
-          .where((order) => order.hasLocation) // Added location filter
+          .where((order) => order.hasLocation)
           .toList())
       .handleError((error, stackTrace) {
         throw AsyncError(error, stackTrace);
@@ -91,16 +92,16 @@ final driverOrdersProvider = StreamProvider.family<List<OrderLocationModel>, Str
 final nearbyOrdersProvider = StreamProvider.family<List<OrderLocationModel>, Map<String, double>>((ref, locationData) {
   final double latitude = locationData['latitude']!;
   final double longitude = locationData['longitude']!;
-  final double radius = locationData['radius'] ?? 5.0; // Default 5km radius
+  final double radius = locationData['radius'] ?? 5.0;
 
   return FirebaseFirestore.instance
       .collection('orders')
-      .where('status', whereIn: ['ready', 'preparing']) // Orders ready for pickup
+      .where('status', whereIn: ['readyForDelivery', 'preparing'])
       .snapshots()
       .map((snapshot) {
         return snapshot.docs
             .map((doc) => OrderLocationModel.fromFirestore(doc))
-            .where((order) => order.hasLocation) // Changed to use hasLocation
+            .where((order) => order.hasLocation)
             .where((order) => isWithinRadius(
                   order.deliveryLatitude!,
                   order.deliveryLongitude!,
@@ -134,12 +135,12 @@ class OrderLocationManagementNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       final snapshot = await _firestore
           .collection('orders')
-          .where('status', whereIn: ['ready', 'preparing'])
+          .where('status', whereIn: ['readyForDelivery', 'preparing'])
           .get();
 
       return snapshot.docs
           .map((doc) => OrderLocationModel.fromFirestore(doc))
-          .where((order) => order.hasLocation) // Changed to use hasLocation
+          .where((order) => order.hasLocation)
           .where((order) {
             final distance = calculateDistance(
               driverLatitude,
@@ -155,11 +156,9 @@ class OrderLocationManagementNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  // ... other methods remain the same ...
-
   // Haversine formula for distance calculation
   double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double earthRadius = 6371; // Earth's radius in kilometers
+    const double earthRadius = 6371;
     
     double dLat = _degreesToRadians(lat2 - lat1);
     double dLon = _degreesToRadians(lon2 - lon1);
@@ -188,7 +187,7 @@ bool isWithinRadius(
   double userLon,
   double radiusKm,
 ) {
-  const double earthRadius = 6371; // Earth's radius in kilometers
+  const double earthRadius = 6371;
   
   double dLat = _degreesToRadians(orderLat - userLat);
   double dLon = _degreesToRadians(orderLon - userLon);

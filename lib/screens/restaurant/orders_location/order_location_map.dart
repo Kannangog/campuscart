@@ -2,16 +2,16 @@
 
 import 'dart:async';
 import 'dart:ui' as ui;
-import 'package:campuscart/models/order_model.dart';
+import 'package:campuscart/models/order_location_model.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 
 class OrdersLocationMap extends StatefulWidget {
-  final List<OrderModel> orders;
+  final List<OrderLocationModel> orders;
   final LatLng restaurantLocation;
   final Function(GoogleMapController) onMapCreated;
-  final Function(OrderModel) onOrderSelected;
+  final Function(OrderLocationModel) onOrderSelected;
 
   const OrdersLocationMap({
     super.key,
@@ -442,13 +442,12 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
     
     // Add order markers with customer icons
     for (var order in widget.orders) {
-      final double lat = order.deliveryLatitude;
-      final double lng = order.deliveryLongitude;
+      if (!order.hasLocation) continue;
       
-      // Skip invalid coordinates
-      if (lat == 0.0 && lng == 0.0) continue;
+      final double lat = order.deliveryLatitude!;
+      final double lng = order.deliveryLongitude!;
       
-      final bool isDelivered = order.status == OrderStatus.delivered;
+      final bool isDelivered = order.status == OrderLocationStatus.delivered;
       
       // Create custom marker icon using the CustomerMarker widget
       final BitmapDescriptor icon = await createCustomerMarkerIcon(
@@ -462,7 +461,7 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
         position: LatLng(lat, lng),
         infoWindow: InfoWindow(
           title: 'Order #${order.id.substring(0, 8)}',
-          snippet: '${order.userName} - ${_getStatusText(order.status)}',
+          snippet: '${order.userName} - ${order.statusText}',
         ),
         icon: icon,
         onTap: () {
@@ -502,12 +501,11 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
     }
   }
 
-  Future<void> _focusOnOrder(OrderModel order) async {
-    final double lat = order.deliveryLatitude;
-    final double lng = order.deliveryLongitude;
+  Future<void> _focusOnOrder(OrderLocationModel order) async {
+    if (!order.hasLocation) return;
     
-    // Skip invalid coordinates
-    if (lat == 0.0 && lng == 0.0) return;
+    final double lat = order.deliveryLatitude!;
+    final double lng = order.deliveryLongitude!;
     
     // Animate to the order location
     await _animateToPosition(LatLng(lat, lng));
@@ -520,20 +518,6 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
     controller.showMarkerInfoWindow(markerId);
   }
 
-  String _getStatusText(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.preparing:
-        return 'Preparing';
-      case OrderStatus.ready:
-        return 'Ready for Delivery';
-      case OrderStatus.outForDelivery:
-        return 'Out for Delivery';
-      case OrderStatus.delivered:
-        return 'Delivered';
-      default:
-        return 'Unknown';
-    }
-  }
 
   void _refreshLocation() async {
     setState(() {
@@ -552,7 +536,7 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
 
   @override
   Widget build(BuildContext context) {
-    final activeOrders = widget.orders.where((o) => o.status != OrderStatus.delivered).length;
+    final activeOrders = widget.orders.where((o) => o.status != OrderLocationStatus.delivered).length;
     
     return Stack(
       children: [
@@ -692,9 +676,11 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
   }
 
   Widget _buildOrdersContent() {
-    final preparingOrders = widget.orders.where((o) => o.status == OrderStatus.preparing).length;
-    final readyOrders = widget.orders.where((o) => o.status == OrderStatus.ready).length;
-    final outForDeliveryOrders = widget.orders.where((o) => o.status == OrderStatus.outForDelivery).length;
+    final preparingOrders = widget.orders.where((o) => o.status == OrderLocationStatus.preparing).length;
+    final readyOrders = widget.orders.where((o) => 
+      o.status == OrderLocationStatus.ready || o.status == OrderLocationStatus.readyForDelivery
+    ).length;
+    final outForDeliveryOrders = widget.orders.where((o) => o.status == OrderLocationStatus.outForDelivery).length;
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -730,7 +716,9 @@ class _OrdersLocationMapState extends State<OrdersLocationMap> {
             ),
             const SizedBox(height: 8),
             // Add focus buttons for each order
-            ...widget.orders.where((order) => order.status != OrderStatus.delivered).map((order) {
+            ...widget.orders.where((order) => 
+              order.status != OrderLocationStatus.delivered && order.hasLocation
+            ).map((order) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: ElevatedButton(

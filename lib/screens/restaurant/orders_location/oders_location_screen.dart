@@ -1,6 +1,3 @@
-// ignore_for_file: deprecated_member_use, unrelated_type_equality_checks
-
-
 import 'package:campuscart/providers/order_location_provider.dart';
 import 'package:campuscart/screens/restaurant/orders_location/order_location_map.dart';
 import 'package:campuscart/screens/restaurant/orders_location/orders_location_panel.dart';
@@ -10,7 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/restaurant_provider.dart' hide restaurantOrdersProvider;
-import '../../../models/order_model.dart';
+import '../../../models/order_location_model.dart';
 
 class OrdersLocation extends ConsumerStatefulWidget {
   const OrdersLocation({super.key});
@@ -21,7 +18,7 @@ class OrdersLocation extends ConsumerStatefulWidget {
 
 class _OrdersLocationState extends ConsumerState<OrdersLocation> {
   GoogleMapController? _mapController;
-  OrderModel? _selectedOrder;
+  OrderLocationModel? _selectedOrder;
   final ScrollController _panelScrollController = ScrollController();
   double _panelSize = 0.15;
 
@@ -35,7 +32,6 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
   void _expandPanel() {
     setState(() => _panelSize = 0.7);
   }
-
 
   void _togglePanel() {
     setState(() => _panelSize = _panelSize == 0.15 ? 0.7 : 0.15);
@@ -70,17 +66,27 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
             return orders.when(
               data: (orderList) {
                 final deliveryOrders = orderList.where((order) => 
-                  order.status == OrderStatus.preparing || 
-                  order.status == OrderStatus.readyForDelivery ||
-                  order.status == OrderStatus.outForDelivery
+                  order.status == OrderLocationStatus.preparing || 
+                  order.status == OrderLocationStatus.readyForDelivery ||
+                  order.status == OrderLocationStatus.outForDelivery
                 ).toList();
+                
+                // Debug logging
+                print('Total orders from provider: ${orderList.length}');
+                print('Delivery orders: ${deliveryOrders.length}');
+                print('Orders with location: ${deliveryOrders.where((o) => o.hasLocation).length}');
+                
+                // Log each order details for debugging
+                for (final order in deliveryOrders) {
+                  print('Order ${order.id}: status=${order.status}, hasLocation=${order.hasLocation}, lat=${order.deliveryLatitude}, lng=${order.deliveryLongitude}');
+                }
                 
                 return Scaffold(
                   body: Stack(
                     children: [
                       OrdersLocationMap(
-                        orders: deliveryOrders.cast<OrderModel>(),
-                        restaurantLocation: const LatLng(37.422, -122.084),
+                        orders: deliveryOrders,
+                        restaurantLocation: const LatLng(37.422, -122.084), // Replace with actual restaurant location
                         onMapCreated: (controller) => _mapController = controller,
                         onOrderSelected: (order) {
                           setState(() => _selectedOrder = order);
@@ -89,7 +95,7 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
                       ),
                       
                       // Draggable panel
-                      _buildDraggablePanel(deliveryOrders.cast<OrderModel>(), context),
+                      _buildDraggablePanel(deliveryOrders, context),
                     ],
                   ),
                 );
@@ -107,7 +113,7 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
     );
   }
 
-  Widget _buildDraggablePanel(List<OrderModel> orders, BuildContext context) {
+  Widget _buildDraggablePanel(List<OrderLocationModel> orders, BuildContext context) {
     return Positioned(
       left: 0,
       right: 0,
@@ -149,7 +155,7 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
     );
   }
 
-  Widget _buildPanelHeader(List<OrderModel> orders, BuildContext context) {
+  Widget _buildPanelHeader(List<OrderLocationModel> orders, BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -199,7 +205,7 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
     );
   }
 
-  Widget _buildOrdersContent(List<OrderModel> orders, BuildContext context) {
+  Widget _buildOrdersContent(List<OrderLocationModel> orders, BuildContext context) {
     if (orders.isEmpty) {
       return Center(
         child: Column(
@@ -214,6 +220,12 @@ class _OrdersLocationState extends ConsumerState<OrdersLocation> {
             Text(
               'No active deliveries',
               style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Orders will appear here when they are preparing, ready for delivery, or out for delivery',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
             ),
           ],
         ),

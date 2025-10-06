@@ -1,8 +1,6 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
-import 'package:campuscart/models/order_model.dart';
-import 'package:campuscart/providers/order_provider/order_management_service.dart';
-
+import 'package:campuscart/models/order_location_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -16,10 +14,10 @@ const Color lightGreenSurface = Color(0xFFF7FBF7);
 const Color lightGreenSurfaceVariant = Color(0xFFDEE5D9);
 
 class OrdersLocationPanel extends StatefulWidget {
-  final List<OrderModel> orders;
-  final OrderModel? selectedOrder;
+  final List<OrderLocationModel> orders;
+  final OrderLocationModel? selectedOrder;
   final ScrollController? scrollController;
-  final Function(OrderModel) onOrderSelected;
+  final Function(OrderLocationModel) onOrderSelected;
   final Function() onOrderDeselected;
   final WidgetRef ref;
 
@@ -49,7 +47,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
       : _buildOrdersList(context, widget.orders);
   }
 
-  Widget _buildOrdersList(BuildContext context, List<OrderModel> orders) {
+  Widget _buildOrdersList(BuildContext context, List<OrderLocationModel> orders) {
     return Column(
       children: [
         // Header with order count
@@ -82,7 +80,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
     );
   }
 
-  Widget _buildOrderDetails(BuildContext context, OrderModel order) {
+  Widget _buildOrderDetails(BuildContext context, OrderLocationModel order) {
     final statusColor = _getStatusColor(order.status);
     
     return Column(
@@ -124,7 +122,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
                     Icon(_getStatusIcon(order.status), size: 18, color: statusColor),
                     const SizedBox(width: 8),
                     Chip(
-                      label: Text(_getStatusText(order.status)),
+                      label: Text(order.statusText),
                       backgroundColor: statusColor.withOpacity(0.1),
                       labelStyle: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
                       side: BorderSide.none,
@@ -268,7 +266,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
                 ),
                 const SizedBox(height: 8),
                 
-                if (order.items.isEmpty) 
+                if (order.items.isEmpty)
                   Text(
                     'No items in this order',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -346,14 +344,16 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
                     ),
                   ),
                 
-                if (order.status == OrderStatus.preparing || order.status == OrderStatus.ready)
+                if (order.status == OrderLocationStatus.preparing || 
+                    order.status == OrderLocationStatus.ready || 
+                    order.status == OrderLocationStatus.readyForDelivery)
                   Row(
                     children: [
                       Expanded(
                         child: FilledButton.tonal(
                           onPressed: () => _confirmMarkAsReady(context, order),
                           child: Text(
-                            order.status == OrderStatus.preparing 
+                            order.status == OrderLocationStatus.preparing 
                               ? 'Mark as Ready' 
                               : 'Start Delivery',
                           ),
@@ -362,7 +362,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
                     ],
                   ),
                 
-                if (order.status == OrderStatus.outForDelivery)
+                if (order.status == OrderLocationStatus.outForDelivery)
                   FilledButton(
                     onPressed: () => _confirmDelivery(context, order),
                     style: FilledButton.styleFrom(
@@ -419,7 +419,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
     );
   }
 
-  Widget _buildOrderCard(BuildContext context, OrderModel order, int index) {
+  Widget _buildOrderCard(BuildContext context, OrderLocationModel order, int index) {
     final statusColor = _getStatusColor(order.status);
     
     return Card(
@@ -447,7 +447,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
                     ),
                   ),
                   Chip(
-                    label: Text(_getStatusText(order.status)),
+                    label: Text(order.statusText),
                     backgroundColor: statusColor.withOpacity(0.1),
                     labelStyle: TextStyle(
                       color: statusColor,
@@ -617,52 +617,39 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
     ).animate().fadeIn(delay: (index * 100).ms).slideY(begin: 0.3);
   }
 
-  Color _getStatusColor(OrderStatus status) {
+  Color _getStatusColor(OrderLocationStatus status) {
     switch (status) {
-      case OrderStatus.preparing:
+      case OrderLocationStatus.preparing:
         return Colors.orange;
-      case OrderStatus.ready:
+      case OrderLocationStatus.ready:
+      case OrderLocationStatus.readyForDelivery:
         return lightGreenPrimary;
-      case OrderStatus.outForDelivery:
+      case OrderLocationStatus.outForDelivery:
         return Colors.blue;
-      case OrderStatus.delivered:
+      case OrderLocationStatus.delivered:
         return Colors.green;
       default:
         return Colors.grey;
     }
   }
 
-  IconData _getStatusIcon(OrderStatus status) {
+  IconData _getStatusIcon(OrderLocationStatus status) {
     switch (status) {
-      case OrderStatus.preparing:
+      case OrderLocationStatus.preparing:
         return Icons.restaurant;
-      case OrderStatus.ready:
+      case OrderLocationStatus.ready:
+      case OrderLocationStatus.readyForDelivery:
         return Icons.assignment_turned_in;
-      case OrderStatus.outForDelivery:
+      case OrderLocationStatus.outForDelivery:
         return Icons.delivery_dining;
-      case OrderStatus.delivered:
+      case OrderLocationStatus.delivered:
         return Icons.check_circle;
       default:
         return Icons.question_mark;
     }
   }
 
-  String _getStatusText(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.preparing:
-        return 'Preparing';
-      case OrderStatus.ready:
-        return 'Ready for Delivery';
-      case OrderStatus.outForDelivery:
-        return 'Out for Delivery';
-      case OrderStatus.delivered:
-        return 'Delivered';
-      default:
-        return 'Unknown';
-    }
-  }
-
-  void _confirmDelivery(BuildContext context, OrderModel order) {
+  void _confirmDelivery(BuildContext context, OrderLocationModel order) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -697,8 +684,7 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
             ),
             ElevatedButton(
               onPressed: () {
-                final orderManagementService = widget.ref.read(orderManagementProvider);
-                orderManagementService.updateOrderStatus(order.id, OrderStatus.delivered);
+                // TODO: Implement delivery confirmation logic
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -715,15 +701,15 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
     );
   }
 
-  void _confirmMarkAsReady(BuildContext context, OrderModel order) {
+  void _confirmMarkAsReady(BuildContext context, OrderLocationModel order) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(order.status == OrderStatus.preparing 
+          title: Text(order.status == OrderLocationStatus.preparing 
             ? 'Mark as Ready?' 
             : 'Start Delivery?'),
-          content: Text(order.status == OrderStatus.preparing 
+          content: Text(order.status == OrderLocationStatus.preparing 
             ? 'Are you sure you want to mark order #${order.id.substring(0, 8)} as ready for delivery?'
             : 'Are you sure you want to start delivery for order #${order.id.substring(0, 8)}?'),
           actions: [
@@ -733,23 +719,18 @@ class _OrdersLocationPanelState extends State<OrdersLocationPanel> {
             ),
             ElevatedButton(
               onPressed: () {
-                final orderManagementService = widget.ref.read(orderManagementProvider);
-                if (order.status == OrderStatus.preparing) {
-                  orderManagementService.updateOrderStatus(order.id, OrderStatus.ready);
-                } else {
-                  orderManagementService.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-                }
+                // TODO: Implement status update logic
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(order.status == OrderStatus.preparing
+                    content: Text(order.status == OrderLocationStatus.preparing
                       ? 'Order #${order.id.substring(0, 8)} marked as ready'
                       : 'Delivery started for order #${order.id.substring(0, 8)}'),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               },
-              child: Text(order.status == OrderStatus.preparing 
+              child: Text(order.status == OrderLocationStatus.preparing 
                 ? 'Mark as Ready' 
                 : 'Start Delivery'),
             ),
