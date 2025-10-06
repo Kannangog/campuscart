@@ -142,7 +142,6 @@ class OrderDetailsWidget extends StatelessWidget {
             
             _buildSummaryRow('Subtotal', '₹${order.subtotal.toStringAsFixed(2)}'),
             _buildSummaryRow('Delivery Fee', '₹${order.deliveryFee.toStringAsFixed(2)}'),
-            _buildSummaryRow('Tax', '₹${order.tax.toStringAsFixed(2)}'),
             
             const Divider(height: 24),
             

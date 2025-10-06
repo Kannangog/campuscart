@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'home_screen.dart';
+import 'home/home_screen.dart';
 import 'restaurants_screen.dart';
 import 'cart_screen.dart';
 import 'order_screen/orders_screen.dart';

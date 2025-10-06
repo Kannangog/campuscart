@@ -53,7 +53,7 @@ class OrderManagementService {
         }
       }
     } catch (e) {
-      print('Error in auto-cancellation check: $e');
+      print('Auto-cancellation check error: $e');
     }
   }
 
@@ -73,11 +73,10 @@ class OrderManagementService {
           'cancelledBy': 'system',
         });
         
-        print('Automatically cancelled order ${order.id}: $reason');
         await _sendAutoCancellationNotification(order, reason);
       }
     } catch (e) {
-      print('Error auto-cancelling order ${order.id}: $e');
+      print('Auto-cancel error ${order.id}: $e');
     }
   }
 
@@ -97,23 +96,19 @@ class OrderManagementService {
         },
       );
     } catch (e) {
-      print('Error sending auto-cancellation notification: $e');
+      print('Auto-cancellation notification error: $e');
     }
   }
 
   String _getOrderShortId(String orderId) => orderId.substring(0, 8);
 
-  // ✅ FIXED: Completely prevent duplicate notifications
   Future<void> _sendNewOrderNotification(OrderModel order) async {
     try {
-      // Check if notification was already sent for this order
       final notificationKey = 'new_order_${order.id}';
       if (_sentNotifications.containsKey(notificationKey)) {
-        print('📢 Notification already sent for order ${order.id}, skipping...');
         return;
       }
 
-      // Get restaurant document to find the owner ID
       final restaurantDoc = await _firestore
           .collection('restaurants')
           .doc(order.restaurantId)
@@ -124,61 +119,39 @@ class OrderManagementService {
         final restaurantOwnerId = restaurantData['ownerId'];
         
         if (restaurantOwnerId == null) {
-          print('❌ No ownerId found for restaurant: ${order.restaurantId}');
           return;
         }
 
         final notificationService = ref.read(notificationServiceProvider);
         final orderShortId = _getOrderShortId(order.id);
         
-        print('📤 Preparing to send notifications for order: ${order.id}');
-        
-        // ✅ FIXED: Send ONLY restaurant notification for new order
-        bool restaurantSuccess = false;
+        await notificationService.sendNotificationToUser(
+          userId: restaurantOwnerId,
+          title: 'New Order Received! 🎉',
+          message: 'You have a new order #$orderShortId from ${order.customerName}',
+          type: 'new_order_restaurant',
+          data: {
+            'orderId': order.id,
+            'orderNumber': orderShortId.toUpperCase(),
+            'customerName': order.customerName,
+            'itemCount': order.items.length,
+            'total': order.total.toStringAsFixed(2),
+            'screen': 'restaurant_orders',
+            'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+            'userType': 'restaurant_owner',
+          },
+        );
 
-        // Send restaurant notification only
-        try {
-          print('📤 Sending restaurant notification to owner: $restaurantOwnerId');
-          restaurantSuccess = await notificationService.sendNotificationToUser(
-            userId: restaurantOwnerId,
-            title: 'New Order Received! 🎉',
-            message: 'You have a new order #$orderShortId from ${order.customerName}',
-            type: 'new_order_restaurant',
-            data: {
-              'orderId': order.id,
-              'orderNumber': orderShortId.toUpperCase(),
-              'customerName': order.customerName,
-              'itemCount': order.items.length,
-              'total': order.total.toStringAsFixed(2),
-              'screen': 'restaurant_orders',
-              'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
-              'userType': 'restaurant_owner',
-            },
-          );
-          print(restaurantSuccess ? '✅ Restaurant notification sent successfully' : '❌ Failed to send restaurant notification');
-        } catch (e) {
-          print('❌ Error sending restaurant notification: $e');
-        }
-
-        // ✅ CRITICAL FIX: Mark as sent BEFORE creating any documents
         _sentNotifications[notificationKey] = true;
-        
-        print('🎯 Order notification result:');
-        print('   Restaurant Owner ($restaurantOwnerId): ${restaurantSuccess ? 'SUCCESS' : 'FAILED'}');
-        
-      } else {
-        print('❌ Restaurant document not found for ID: ${order.restaurantId}');
       }
     } catch (e) {
-      print('❌ Error in _sendNewOrderNotification: $e');
+      print('New order notification error: $e');
     }
   }
 
-  // ✅ STREAMLINED: Send only essential status notifications
   Future<void> _sendOrderStatusUpdateNotification(OrderModel order, OrderStatus newStatus) async {
     try {
       if (!_shouldSendStatusNotification(newStatus)) {
-        print('📢 Skipping notification for status: $newStatus');
         return;
       }
 
@@ -187,7 +160,6 @@ class OrderManagementService {
 
       final notificationKey = 'status_${order.id}_${newStatus.toString()}';
       if (_sentNotifications.containsKey(notificationKey)) {
-        print('📢 Status notification already sent for order ${order.id}, status: $newStatus');
         return;
       }
 
@@ -203,31 +175,27 @@ class OrderManagementService {
 
       if (success) {
         _sentNotifications[notificationKey] = true;
-        print('✅ Sent ${notificationConfig.userType} notification for order ${order.id}, status: $newStatus');
-      } else {
-        print('❌ Failed to send ${notificationConfig.userType} notification for order ${order.id}');
       }
     } catch (e) {
-      print('Error sending order status update notification: $e');
+      print('Status notification error: $e');
     }
   }
 
-  // ✅ STREAMLINED: Only send notifications for key status changes
   bool _shouldSendStatusNotification(OrderStatus status) {
+    // Only send notifications for these key status changes
     return status == OrderStatus.confirmed ||
            status == OrderStatus.outForDelivery ||
            status == OrderStatus.delivered ||
            status == OrderStatus.cancelled;
   }
 
-  // ✅ STREAMLINED: Notification configuration for key events only
   _NotificationConfig? _getNotificationConfig(OrderModel order, OrderStatus newStatus) {
     final orderShortId = _getOrderShortId(order.id);
     
     switch (newStatus) {
       case OrderStatus.confirmed:
         return _NotificationConfig(
-          order.userId, // Send to customer
+          order.userId,
           'customer',
           'Order Confirmed! ✅',
           'Your order #$orderShortId has been confirmed by the restaurant.',
@@ -244,7 +212,7 @@ class OrderManagementService {
       
       case OrderStatus.outForDelivery:
         return _NotificationConfig(
-          order.userId, // Send to customer
+          order.userId,
           'customer',
           'Order Out for Delivery! 🚚',
           'Your order #$orderShortId is on its way to you.',
@@ -261,7 +229,7 @@ class OrderManagementService {
       
       case OrderStatus.delivered:
         return _NotificationConfig(
-          order.userId, // Send to customer
+          order.userId,
           'customer',
           'Order Delivered! 🎊',
           'Your order #$orderShortId has been delivered. Enjoy your meal!',
@@ -277,13 +245,10 @@ class OrderManagementService {
         );
       
       case OrderStatus.cancelled:
-        // Determine who to send cancellation notification to
         final isCancelledByCustomer = order.cancelledBy == order.userId;
         if (isCancelledByCustomer) {
-          // Send to restaurant if customer cancelled
           return _getRestaurantCancellationConfig(order);
         } else {
-          // Send to customer if restaurant or system cancelled
           return _NotificationConfig(
             order.userId,
             'customer',
@@ -309,7 +274,6 @@ class OrderManagementService {
   _NotificationConfig _getRestaurantCancellationConfig(OrderModel order) {
     final orderShortId = _getOrderShortId(order.id);
     
-    // Get restaurant owner ID from restaurant document
     return _NotificationConfig(
       _getRestaurantOwnerId(order.restaurantId),
       'restaurant_owner',
@@ -327,10 +291,7 @@ class OrderManagementService {
     );
   }
 
-  // Helper method to get restaurant owner ID
   String _getRestaurantOwnerId(String restaurantId) {
-    // In a real implementation, you would fetch this from Firestore
-    // For now, we'll return an empty string and handle it in the notification service
     return '';
   }
 
@@ -341,22 +302,18 @@ class OrderManagementService {
 
   Future<String> createOrder(OrderModel order) async {
     try {
-      print('🛒 Creating new order...');
-      
       final docRef = await _firestore.collection('orders').add(order.toFirestore());
       final orderId = docRef.id;
       
       await _firestore.collection('orders').doc(orderId).update({'id': orderId});
       
       final createdOrder = order.copyWith(id: orderId);
-      print('✅ Order created successfully: $orderId');
 
-      // Send notification only to restaurant for new order
       _sendNewOrderNotification(createdOrder);
       
       return orderId;
     } catch (e) {
-      print('❌ Error creating order: $e');
+      print('Order creation error: $e');
       rethrow;
     }
   }
@@ -394,7 +351,7 @@ class OrderManagementService {
         await _sendOrderStatusUpdateNotification(order, status);
       }
     } catch (e) {
-      print('Error sending status update notification: $e');
+      print('Status update notification error: $e');
     }
   }
 
@@ -464,7 +421,6 @@ class OrderManagementService {
     }
   }
 
-  // Analytics and reporting methods remain the same...
   Future<Map<String, dynamic>> getOrderAnalytics(String restaurantId, {
     DateTime? startDate,
     DateTime? endDate,
@@ -539,8 +495,6 @@ class OrderManagementService {
 
   Future<List<OrderModel>> getOrdersByStatus(String restaurantId, OrderStatus status, {int retryCount = 0}) async {
     try {
-      print('🔍 Fetching orders for restaurant: $restaurantId, status: $status');
-      
       final snapshot = await _firestore
           .collection('orders')
           .where('restaurantId', isEqualTo: restaurantId)
@@ -548,16 +502,9 @@ class OrderManagementService {
           .orderBy('createdAt', descending: true)
           .get();
 
-      final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
-      
-      print('✅ Found ${orders.length} orders for restaurant $restaurantId with status $status');
-      
-      return orders;
+      return snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
     } catch (e) {
-      print('❌ Error fetching orders by status: $e');
-      
       if (_shouldRetry(e, retryCount)) {
-        print('🔄 Retrying... (${retryCount + 1}/$_maxRetries)');
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
         return getOrdersByStatus(restaurantId, status, retryCount: retryCount + 1);
       }
@@ -571,22 +518,14 @@ class OrderManagementService {
 
   Future<List<OrderModel>> getRestaurantOrders(String restaurantId, {int retryCount = 0}) async {
     try {
-      print('🔍 Fetching ALL orders for restaurant: $restaurantId');
-      
       final snapshot = await _firestore
           .collection('orders')
           .where('restaurantId', isEqualTo: restaurantId)
           .orderBy('createdAt', descending: true)
           .get();
 
-      final orders = snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
-      
-      print('✅ Found ${orders.length} total orders for restaurant $restaurantId');
-      
-      return orders;
+      return snapshot.docs.map((doc) => OrderModel.fromFirestore(doc)).toList();
     } catch (e) {
-      print('❌ Error fetching restaurant orders: $e');
-      
       if (_shouldRetry(e, retryCount)) {
         await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
         return getRestaurantOrders(restaurantId, retryCount: retryCount + 1);

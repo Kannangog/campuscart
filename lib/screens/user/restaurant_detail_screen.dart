@@ -1,27 +1,41 @@
 // ignore_for_file: deprecated_member_use
 
+import 'package:campuscart/models/restaurant_rating_model.dart';
 import 'package:campuscart/screens/user/food_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/menu_provider.dart';
 import '../../providers/cart_provider.dart';
+import '../../providers/restaurant_rating_provider.dart';
 import '../../models/restaurant_model.dart';
 import '../../models/menu_item_model.dart';
 
 // Restaurant Detail Screen
-class RestaurantDetailScreen extends ConsumerWidget {
+class RestaurantDetailScreen extends ConsumerStatefulWidget {
   final RestaurantModel restaurant;
 
   const RestaurantDetailScreen({super.key, required this.restaurant, required String restaurantId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RestaurantDetailScreen> createState() => _RestaurantDetailScreenState();
+}
+
+class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen> {
+  @override
+  Widget build(BuildContext context) {
     final menuItems = ref.watch(menuProvider);
     final restaurantMenu = menuItems.maybeWhen(
-      data: (items) => items.where((item) => item.restaurantId == restaurant.id).toList(),
+      data: (items) => items.where((item) => item.restaurantId == widget.restaurant.id).toList(),
       orElse: () => <MenuItemModel>[],
     );
+
+    // Watch the rating provider to get real-time updates
+    ref.watch(restaurantRatingProvider);
+    final ratingNotifier = ref.read(restaurantRatingProvider.notifier);
+    final averageRating = ratingNotifier.getAverageRating(widget.restaurant.id);
+    final ratingCount = ratingNotifier.getRatingCount(widget.restaurant.id);
+    final userRating = ratingNotifier.getUserRating(widget.restaurant.id, 'current_user');
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -33,7 +47,7 @@ class RestaurantDetailScreen extends ConsumerWidget {
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                restaurant.name,
+                widget.restaurant.name,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -51,9 +65,9 @@ class RestaurantDetailScreen extends ConsumerWidget {
                 fit: StackFit.expand,
                 children: [
                   Hero(
-                    tag: 'restaurant-${restaurant.id}',
+                    tag: 'restaurant-${widget.restaurant.id}',
                     child: CachedNetworkImage(
-                      imageUrl: restaurant.imageUrl,
+                      imageUrl: widget.restaurant.imageUrl,
                       fit: BoxFit.cover,
                       errorWidget: (context, url, error) => Container(
                         color: Colors.grey[300],
@@ -61,7 +75,6 @@ class RestaurantDetailScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  // Gradient overlay
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -90,6 +103,10 @@ class RestaurantDetailScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // User Rating Section (if exists) - Shows instantly after rating
+                  if (userRating != null) 
+                    _buildUserRatingSection(userRating),
+                  
                   // Restaurant info row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -97,24 +114,55 @@ class RestaurantDetailScreen extends ConsumerWidget {
                       _buildInfoItem(
                         icon: Icons.star,
                         color: Colors.amber,
-                        value: restaurant.rating.toStringAsFixed(1),
+                        value: averageRating.toStringAsFixed(1),
                         label: 'Rating',
+                        onTap: () => _showRatingDialog(context, ref, userRating),
+                      ),
+                      _buildInfoItem(
+                        icon: Icons.people,
+                        color: Colors.purple,
+                        value: ratingCount.toString(),
+                        label: 'Ratings',
+                        onTap: () => _showRatingDialog(context, ref, userRating),
                       ),
                       _buildInfoItem(
                         icon: Icons.access_time,
                         color: Colors.blue,
-                        value: '${restaurant.preparationTime} min',
+                        value: '${widget.restaurant.preparationTime} min',
                         label: 'Prep Time',
                       ),
                       _buildInfoItem(
                         icon: Icons.delivery_dining,
                         color: Colors.green,
-                        value: '₹${restaurant.deliveryFee}',
+                        value: '₹${widget.restaurant.deliveryFee}',
                         label: 'Delivery',
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
+                  
+                  // Single Rate Button - Only shows if user hasn't rated yet
+                  if (userRating == null) 
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.star, color: Colors.white),
+                        label: const Text(
+                          'Rate This Restaurant',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => _showRatingDialog(context, ref, userRating),
+                      ),
+                    ),
+                  if (userRating == null) const SizedBox(height: 24),
+                  
                   // Description
                   Text(
                     'About',
@@ -125,61 +173,15 @@ class RestaurantDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    restaurant.description,
+                    widget.restaurant.description,
                     style: TextStyle(
                       color: Colors.grey[700],
                       fontSize: 14,
                       height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  // Today's Special
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.orange[100]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.orange,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.local_offer, color: Colors.white, size: 24),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Today\'s Special',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange[800],
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '20% off on all main courses',
-                                style: TextStyle(
-                                  color: Colors.orange[700],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(height: 32),
+                  
                   // Menu header
                   Row(
                     children: [
@@ -195,6 +197,15 @@ class RestaurantDetailScreen extends ConsumerWidget {
                         label: Text(restaurantMenu.length.toString()),
                         backgroundColor: Colors.blue,
                       ),
+                      const Spacer(),
+                      if (restaurantMenu.isNotEmpty)
+                        Text(
+                          '${restaurantMenu.length} items',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -236,33 +247,103 @@ class RestaurantDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoItem({required IconData icon, required Color color, required String value, required String label}) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
+  Widget _buildUserRatingSection(RestaurantRating userRating) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[100]!),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.star, color: Colors.amber, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Rating',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[800],
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      userRating.rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.star, color: Colors.amber, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${userRating.rating.toInt()}.0 ★',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+          // Edit icon button to update rating
+          IconButton(
+            icon: Icon(Icons.edit, color: Colors.green[700], size: 20),
+            onPressed: () => _showRatingDialog(context, ref, userRating),
           ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 12,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoItem({
+    required IconData icon,
+    required Color color,
+    required String value,
+    required String label,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -350,7 +431,7 @@ class RestaurantDetailScreen extends ConsumerWidget {
                     child: IconButton(
                       icon: const Icon(Icons.add, color: Colors.white),
                       onPressed: () {
-                        ref.read(cartProvider.notifier).addItem(item, restaurant.id, restaurant.name);
+                        ref.read(cartProvider.notifier).addItem(item, widget.restaurant.id, widget.restaurant.name);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('${item.name} added to cart'),
@@ -366,6 +447,116 @@ class RestaurantDetailScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showRatingDialog(BuildContext context, WidgetRef ref, RestaurantRating? existingRating) {
+    double selectedRating = existingRating?.rating ?? 0.0;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    existingRating != null ? 'Update Your Rating' : 'Rate Restaurant',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.restaurant.name,
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'How was your experience?',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  // Star Rating
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        icon: Icon(
+                          index < selectedRating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                          size: 32,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            selectedRating = index + 1.0;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    selectedRating == 0 ? 'Tap to rate' : '${selectedRating.toStringAsFixed(1)} Stars',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: selectedRating > 0
+                            ? () {
+                                final rating = RestaurantRating(
+                                  restaurantId: widget.restaurant.id,
+                                  userName: 'current_user',
+                                  rating: selectedRating,
+                                  review: null,
+                                  timestamp: DateTime.now(),
+                                );
+                                ref.read(restaurantRatingProvider.notifier).addRating(rating);
+                                Navigator.pop(context);
+                                
+                                // Force UI update by calling setState
+                                if (mounted) {
+                                  setState(() {});
+                                }
+                                
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      existingRating != null 
+                                        ? 'Rating updated to ${selectedRating.toInt()} stars!' 
+                                        : 'Thanks for your ${selectedRating.toInt()} star rating!'
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            : null,
+                        child: Text(existingRating != null ? 'Update' : 'Submit Rating'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

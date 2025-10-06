@@ -1,13 +1,11 @@
 // ignore_for_file: deprecated_member_use
 
-
 import 'package:campuscart/providers/order_provider/order_management_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:campuscart/models/order_model.dart';
-
 
 class OrderCard extends ConsumerStatefulWidget {
   final OrderModel order;
@@ -242,8 +240,6 @@ class _OrderCardState extends ConsumerState<OrderCard> {
                   _buildSummaryRow('Subtotal', '₹${widget.order.subtotal.toStringAsFixed(2)}'),
                   const SizedBox(height: 4),
                   _buildSummaryRow('Delivery Fee', '₹${widget.order.deliveryFee.toStringAsFixed(2)}'),
-                  const SizedBox(height: 4),
-                  _buildSummaryRow('Tax', '₹${widget.order.tax.toStringAsFixed(2)}'),
                   if (widget.order.discount > 0) ...[
                     const SizedBox(height: 4),
                     _buildSummaryRow('Discount', '-₹${widget.order.discount.toStringAsFixed(2)}', 

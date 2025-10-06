@@ -9,7 +9,6 @@ enum OrderStatus {
   outForDelivery,
   delivered,
   cancelled, delerved,
-  // Removed the duplicate 'delerved' status
 }
 
 class OrderItem {
@@ -70,8 +69,6 @@ class OrderModel {
   final List<OrderItem> items;
   final double subtotal;
   final double deliveryFee;
-  final double convenienceFee;
-  final double tax;
   final double discount;
   final double total;
   final OrderStatus status;
@@ -104,8 +101,6 @@ class OrderModel {
     required this.items,
     required this.subtotal,
     required this.deliveryFee,
-    required this.convenienceFee,
-    required this.tax,
     required this.discount,
     required this.total,
     required this.status,
@@ -182,8 +177,6 @@ class OrderModel {
       items: items,
       subtotal: (data['subtotal'] ?? 0.0).toDouble(),
       deliveryFee: (data['deliveryFee'] ?? 0.0).toDouble(),
-      convenienceFee: (data['convenienceFee'] ?? 5.0).toDouble(),
-      tax: (data['tax'] ?? 0.0).toDouble(),
       discount: (data['discount'] ?? 0.0).toDouble(),
       total: (data['total'] ?? 0.0).toDouble(),
       status: status,
@@ -245,8 +238,6 @@ class OrderModel {
       'items': items.map((item) => item.toMap()).toList(),
       'subtotal': subtotal,
       'deliveryFee': deliveryFee,
-      'convenienceFee': convenienceFee,
-      'tax': tax,
       'discount': discount,
       'total': total,
       'status': status.name,
@@ -285,8 +276,6 @@ class OrderModel {
     List<OrderItem>? items,
     double? subtotal,
     double? deliveryFee,
-    double? convenienceFee,
-    double? tax,
     double? discount,
     double? total,
     OrderStatus? status,
@@ -319,8 +308,6 @@ class OrderModel {
       items: items ?? this.items,
       subtotal: subtotal ?? this.subtotal,
       deliveryFee: deliveryFee ?? this.deliveryFee,
-      convenienceFee: convenienceFee ?? this.convenienceFee,
-      tax: tax ?? this.tax,
       discount: discount ?? this.discount,
       total: total ?? this.total,
       status: status ?? this.status,
@@ -390,8 +377,6 @@ class OrderModel {
   String get formattedTotal => '₹${total.toStringAsFixed(2)}';
   String get formattedSubtotal => '₹${subtotal.toStringAsFixed(2)}';
   String get formattedDeliveryFee => '₹${deliveryFee.toStringAsFixed(2)}';
-  String get formattedConvenienceFee => '₹${convenienceFee.toStringAsFixed(2)}';
-  String get formattedTax => '₹${tax.toStringAsFixed(2)}';
   String get formattedDiscount => '₹${discount.toStringAsFixed(2)}';
 
   int get totalItems => items.fold(0, (int sum, OrderItem item) => sum + item.quantity);

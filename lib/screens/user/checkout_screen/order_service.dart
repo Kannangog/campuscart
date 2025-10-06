@@ -15,7 +15,8 @@ class OrderService {
     required LatLng deliveryLocation,
     required String paymentMethod,
     required dynamic orderService,
-    required String phoneNumber, String? mapLink,
+    required String phoneNumber, 
+    String? mapLink,
   }) async {
     // Validate required fields
     if (cartState.restaurantId == null || cartState.restaurantName == null) {
@@ -39,13 +40,10 @@ class OrderService {
       );
     }).toList();
 
-    // Calculate order totals
+    // Calculate order totals - NO EXTRA FEES
     final subtotal = cartNotifier.calculateSubtotal();
     const deliveryFee = 0.0; // Free delivery
-    const convenienceFee = 5.0;
-    const taxRate = 0.08; // 8% tax rate
-    final tax = subtotal * taxRate;
-    final total = subtotal + deliveryFee + convenienceFee + tax;
+    final total = subtotal + deliveryFee; // No convenience fee, no tax
 
     // Create order
     final order = OrderModel(
@@ -60,14 +58,12 @@ class OrderService {
       items: orderItems,
       subtotal: subtotal,
       deliveryFee: deliveryFee,
-      convenienceFee: convenienceFee,
-      tax: tax,
       discount: 0.0,
-      total: total,
+      total: total, // This will now be exactly the subtotal (₹99.00)
       status: OrderStatus.pending,
       deliveryAddress: deliveryAddress,
       deliveryLatitude: deliveryLocation.latitude,
-      deliveryLongitude: deliveryLocation.longitude, // Use cart-level special instructions
+      deliveryLongitude: deliveryLocation.longitude,
       paymentMethod: paymentMethod,
       paymentStatus: paymentMethod.toLowerCase().contains('cash') 
           ? 'pending' 
