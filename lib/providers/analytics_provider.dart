@@ -1,5 +1,5 @@
 // analytics_provider.dart
-// ignore_for_file: avoid_types_as_parameter_names
+// ignore_for_file: avoid_types_as_parameter_names, avoid_print
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

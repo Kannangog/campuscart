@@ -56,8 +56,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Column(
                 children: [
                   Container(
-                    width: 120,
-                    height: 120,
+                    width: 124,
+                    height: 116,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -79,9 +79,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(30),
                       child: Image.asset(
-                        'assets/images/app_image.png', 
-                        width: 80,
-                        height: 80,
+                        'assets/images/app_image.jpg', 
+                        width: 500,
+                        height: 500,
                         fit: BoxFit.contain,
                       ),
                     ),
