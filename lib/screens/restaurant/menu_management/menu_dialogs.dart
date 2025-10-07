@@ -10,7 +10,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../../../../providers/menu_provider.dart';
 import '../../../../models/menu_item_model.dart';
 
-// Use immutable state with freezed or manual implementation
+// Optimized state management
 class MenuDialogState {
   final TextEditingController nameController;
   final TextEditingController descriptionController;
@@ -205,7 +205,7 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
         text: widget.item?.specialOfferPrice?.toString() ?? '',
       ),
       selectedCategory: finalCategory,
-      isVegetarian: widget.item?.isVegetarian ?? true,
+      isVegetarian: widget.item?.isVegetarian ?? true, // ✅ Default to vegetarian
       isVegan: widget.item?.isVegan ?? false,
       isSpicy: widget.item?.isSpicy ?? false,
       isTodaysSpecial: widget.item?.isTodaysSpecial ?? false,
@@ -229,52 +229,49 @@ class _MenuDialogState extends ConsumerState<MenuDialog> {
     }
   }
 
-Future<String?> _uploadImage(File imageFile) async {
-  try {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final fileName = '${timestamp}_${imageFile.path.split('/').last}';
-    
-    // FIXED: Use restaurants path to match your rules
-    final storageRef = FirebaseStorage.instance.ref().child('restaurants/menu_images/$fileName');
-    
-    final uploadTask = storageRef.putFile(
-      imageFile,
-      SettableMetadata(contentType: 'image/jpeg'),
-    );
-    
-    final snapshot = await uploadTask;
-    
-    if (snapshot.state == TaskState.success) {
-      return await storageRef.getDownloadURL();
-    } else {
-      throw Exception('Failed to upload image: ${snapshot.state}');
-    }
-  } on FirebaseException catch (e) {
-    throw Exception('Firebase storage error: ${e.code} - ${e.message}');
-  } catch (e) {
-    throw Exception('Image upload failed: $e');
+  // ✅ FIXED: Vegetarian/Non-vegetarian toggle logic
+  void _toggleVegetarian(bool isVegetarian) {
+    _updateState(_state.copyWith(
+      isVegetarian: isVegetarian,
+      // If switching to non-vegetarian, vegan must be false
+      isVegan: isVegetarian ? _state.isVegan : false,
+    ));
   }
-}
 
-  Future<void> _saveMenuItem() async {
-    // Check if widget is still mounted
-    if (!mounted) return;
+  Future<String?> _uploadImage(File imageFile) async {
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = '${timestamp}_${imageFile.path.split('/').last}';
+      
+      final storageRef = FirebaseStorage.instance.ref().child('restaurants/menu_images/$fileName');
+      
+      final uploadTask = storageRef.putFile(
+        imageFile,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      
+      final snapshot = await uploadTask;
+      
+      if (snapshot.state == TaskState.success) {
+        return await storageRef.getDownloadURL();
+      } else {
+        throw Exception('Failed to upload image: ${snapshot.state}');
+      }
+    } on FirebaseException catch (e) {
+      throw Exception('Firebase storage error: ${e.code} - ${e.message}');
+    } catch (e) {
+      throw Exception('Image upload failed: $e');
+    }
+  }
 
-    // Validate required fields
+  // ✅ OPTIMIZED: Validation method
+  Map<String, dynamic>? _validateForm() {
+    // Check required fields
     if (_state.nameController.text.trim().isEmpty ||
         _state.descriptionController.text.trim().isEmpty ||
         _state.priceController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please fill all required fields'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-      return;
+      _showErrorSnackBar('Please fill all required fields');
+      return null;
     }
 
     // Validate price format
@@ -285,17 +282,8 @@ Future<String?> _uploadImage(File imageFile) async {
         throw const FormatException('Price must be greater than 0');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter a valid price'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-      return;
+      _showErrorSnackBar('Please enter a valid price');
+      return null;
     }
 
     // Validate special offer price
@@ -307,32 +295,54 @@ Future<String?> _uploadImage(File imageFile) async {
           throw const FormatException('Special offer price must be greater than 0');
         }
         if (specialOfferPrice >= price) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Special offer price must be less than regular price'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          );
-          return;
+          _showErrorSnackBar('Special offer price must be less than regular price');
+          return null;
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Please enter a valid special offer price'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-        return;
+        _showErrorSnackBar('Please enter a valid special offer price');
+        return null;
       }
     }
+
+    return {
+      'price': price,
+      'specialOfferPrice': specialOfferPrice,
+    };
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.lightGreen[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Future<void> _saveMenuItem() async {
+    if (!mounted) return;
+
+    // Validate form
+    final validation = _validateForm();
+    if (validation == null) return;
+
+    final price = validation['price'] as double;
+    final specialOfferPrice = validation['specialOfferPrice'] as double?;
 
     String finalImageUrl = _state.imageUrl;
     
@@ -350,17 +360,8 @@ Future<String?> _uploadImage(File imageFile) async {
       } catch (e) {
         if (!mounted) return;
         _updateState(_state.copyWith(isUploading: false));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to upload image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-        return; // Don't proceed if image upload fails
+        _showErrorSnackBar('Failed to upload image: ${e.toString()}');
+        return;
       }
     }
     
@@ -381,7 +382,7 @@ Future<String?> _uploadImage(File imageFile) async {
           specialOfferPrice: specialOfferPrice,
           imageUrl: finalImageUrl,
           category: _state.selectedCategory,
-          isVegetarian: _state.isVegetarian,
+          isVegetarian: _state.isVegetarian, // ✅ Now correctly saves vegetarian status
           isVegan: _state.isVegan,
           isSpicy: _state.isSpicy,
           isTodaysSpecial: _state.isTodaysSpecial,
@@ -405,7 +406,7 @@ Future<String?> _uploadImage(File imageFile) async {
             'price': price,
             'specialOfferPrice': specialOfferPrice,
             'category': _state.selectedCategory,
-            'isVegetarian': _state.isVegetarian,
+            'isVegetarian': _state.isVegetarian, // ✅ Now correctly saves vegetarian status
             'isVegan': _state.isVegan,
             'isSpicy': _state.isSpicy,
             'isTodaysSpecial': _state.isTodaysSpecial,
@@ -420,32 +421,13 @@ Future<String?> _uploadImage(File imageFile) async {
       _updateState(_state.copyWith(isUploading: false));
       
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(widget.item == null 
-              ? 'Menu item added successfully!' 
-              : 'Menu item updated successfully!'),
-          backgroundColor: Colors.lightGreen[700],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      _showSuccessSnackBar(widget.item == null 
+          ? 'Menu item added successfully!' 
+          : 'Menu item updated successfully!');
     } catch (e) {
       if (!mounted) return;
       _updateState(_state.copyWith(isUploading: false));
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving menu item: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      _showErrorSnackBar('Error saving menu item: ${e.toString()}');
     }
   }
 
@@ -465,8 +447,13 @@ Future<String?> _uploadImage(File imageFile) async {
       data: lightGreenTheme,
       child: AlertDialog(
         insetPadding: const EdgeInsets.all(20),
-        title: Text(widget.item == null ? 'Add Menu Item' : 'Edit Menu Item',
-          style: TextStyle(color: lightGreenTheme.colorScheme.primary, fontWeight: FontWeight.bold)),
+        title: Text(
+          widget.item == null ? 'Add Menu Item' : 'Edit Menu Item',
+          style: TextStyle(
+            color: lightGreenTheme.colorScheme.primary, 
+            fontWeight: FontWeight.bold
+          ),
+        ),
         backgroundColor: lightGreenTheme.colorScheme.surface,
         content: SingleChildScrollView(
           child: Column(
@@ -474,325 +461,66 @@ Future<String?> _uploadImage(File imageFile) async {
             children: [
               // Image Preview
               if (_state.imageUrl.isNotEmpty || _state.selectedImage != null)
-                Container(
-                  height: 150,
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: lightGreenTheme.colorScheme.surfaceContainerHighest,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: _state.selectedImage != null
-                        ? Image.file(_state.selectedImage!, 
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.fastfood,
-                                color: lightGreenTheme.colorScheme.primary.withOpacity(0.5),
-                                size: 50,
-                              );
-                            })
-                        : CachedNetworkImage(
-                            imageUrl: _state.imageUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Center(
-                              child: CircularProgressIndicator(color: lightGreenTheme.colorScheme.primary),
-                            ),
-                            errorWidget: (context, url, error) => Icon(
-                              Icons.fastfood,
-                              color: lightGreenTheme.colorScheme.primary.withOpacity(0.5),
-                              size: 50,
-                            ),
-                          ),
-                  ),
-                ).animate().fadeIn().scale(),
-
-              TextField(
+                _buildImagePreview(lightGreenTheme),
+              
+              // Form Fields
+              _buildTextField(
                 controller: _state.nameController,
-                decoration: InputDecoration(
-                  labelText: 'Item Name *',
-                  labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary.withOpacity(0.5)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
-                  ),
-                ),
+                label: 'Item Name *',
+                theme: lightGreenTheme,
               ),
               const SizedBox(height: 16),
-              TextField(
+              _buildTextField(
                 controller: _state.descriptionController,
-                decoration: InputDecoration(
-                  labelText: 'Description *',
-                  labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary.withOpacity(0.5)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
-                  ),
-                ),
+                label: 'Description *',
+                theme: lightGreenTheme,
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
-              TextField(
+              _buildTextField(
                 controller: _state.priceController,
-                decoration: InputDecoration(
-                  labelText: 'Price *',
-                  labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
-                  prefixText: '₹',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary.withOpacity(0.5)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
-                  ),
-                ),
+                label: 'Price *',
+                theme: lightGreenTheme,
+                prefixText: '₹',
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: CheckboxListTile(
-                      title: Text('Special Offer',
-                        style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
-                      value: _state.hasSpecialOffer,
-                      onChanged: (value) {
-                        _updateState(_state.copyWith(hasSpecialOffer: value ?? false));
-                      },
-                      activeColor: lightGreenTheme.colorScheme.primary,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                  if (_state.hasSpecialOffer)
-                    Expanded(
-                      child: TextField(
-                        controller: _state.specialOfferController,
-                        decoration: InputDecoration(
-                          labelText: 'Offer Price',
-                          labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
-                          prefixText: '₹',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary.withOpacity(0.5)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
-                          ),
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      ),
-                    ),
-                ],
-              ),
+              
+              // Special Offer Section
+              _buildSpecialOfferSection(lightGreenTheme),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _state.selectedCategory,
-                decoration: InputDecoration(
-                  labelText: 'Category',
-                  labelStyle: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary.withOpacity(0.5)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: lightGreenTheme.colorScheme.primary, width: 2),
-                  ),
-                ),
-                items: _categories.map((category) {
-                  final categoryColors = getCategoryColor(category);
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: categoryColors['color'],
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(getCategoryDisplayName(category)),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    _updateState(_state.copyWith(selectedCategory: value));
-                  }
-                },
-                dropdownColor: lightGreenTheme.colorScheme.surfaceVariant,
-              ),
+              
+              // Category Selection
+              _buildCategoryDropdown(lightGreenTheme),
               const SizedBox(height: 16),
               
               // Category Preview Tag
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: lightGreenTheme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Category Preview: ', 
-                      style: TextStyle(
-                        color: lightGreenTheme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w500,
-                      )),
-                    _buildCategoryPreviewTag(_state.selectedCategory),
-                  ],
-                ),
-              ),
+              _buildCategoryPreview(lightGreenTheme),
+              const SizedBox(height: 16),
               
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilterChip(
-                      label: Text('Vegetarian',
-                        style: TextStyle(
-                          color: _state.isVegetarian ? Colors.white : lightGreenTheme.colorScheme.onSurface,
-                        )),
-                      selected: _state.isVegetarian,
-                      onSelected: (value) {
-                        _updateState(_state.copyWith(
-                          isVegetarian: value,
-                          isVegan: value ? _state.isVegan : false,
-                        ));
-                      },
-                      backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
-                      selectedColor: Colors.green,
-                      checkmarkColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilterChip(
-                      label: Text('Non-Vegetarian',
-                        style: TextStyle(
-                          color: !_state.isVegetarian ? Colors.white : lightGreenTheme.colorScheme.onSurface,
-                        )),
-                      selected: !_state.isVegetarian,
-                      onSelected: (value) {
-                        _updateState(_state.copyWith(
-                          isVegetarian: !value,
-                          isVegan: false,
-                        ));
-                      },
-                      backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
-                      selectedColor: Colors.red,
-                      checkmarkColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
+              // ✅ FIXED: Vegetarian/Non-vegetarian Selection
+              _buildVegetarianSelection(lightGreenTheme),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilterChip(
-                    label: Text('Vegan',
-                      style: TextStyle(
-                        color: _state.isVegan ? Colors.white : lightGreenTheme.colorScheme.onSurface,
-                      )),
-                    selected: _state.isVegan,
-                    onSelected: (value) {
-                      _updateState(_state.copyWith(
-                        isVegan: value,
-                        isVegetarian: value ? true : _state.isVegetarian,
-                      ));
-                    },
-                    backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
-                    selectedColor: Colors.lightGreen[700],
-                    checkmarkColor: Colors.white,
-                  ),
-                  FilterChip(
-                    label: Text('Spicy',
-                      style: TextStyle(
-                        color: _state.isSpicy ? Colors.white : lightGreenTheme.colorScheme.onSurface,
-                      )),
-                    selected: _state.isSpicy,
-                    onSelected: (value) {
-                      _updateState(_state.copyWith(isSpicy: value));
-                    },
-                    backgroundColor: lightGreenTheme.colorScheme.surfaceVariant,
-                    selectedColor: Colors.orange[700],
-                    checkmarkColor: Colors.white,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              CheckboxListTile(
-                title: Text('Today\'s Special',
-                  style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
-                value: _state.isTodaysSpecial,
-                onChanged: (value) {
-                  _updateState(_state.copyWith(isTodaysSpecial: value ?? false));
-                },
-                activeColor: Colors.purple[700],
-                contentPadding: EdgeInsets.zero,
-              ),
+              
+              // Additional Options
+              _buildAdditionalOptions(lightGreenTheme),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _state.isUploading ? null : () async {
-                  final picker = ImagePicker();
-                  final pickedFile = await picker.pickImage(
-                    source: ImageSource.gallery,
-                    imageQuality: 80,
-                    maxWidth: 1024,
-                    maxHeight: 1024,
-                  );
-                  if (pickedFile != null && mounted) {
-                    _updateState(_state.copyWith(
-                      selectedImage: File(pickedFile.path),
-                      imageUrl: _state.selectedImage != null ? '' : _state.imageUrl,
-                    ));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: lightGreenTheme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.image),
-                label: Text(_state.selectedImage != null || _state.imageUrl.isNotEmpty 
-                    ? 'Change Image' : 'Add Image'),
-              ),
-              if (_state.isUploading) ...[
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator()),
-                    const SizedBox(width: 12),
-                    Text('Uploading image...', 
-                      style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
-                  ],
-                ),
-              ],
+              
+              // Image Upload Button
+              _buildImageUploadButton(lightGreenTheme),
+              
+              // Uploading Indicator
+              if (_state.isUploading) _buildUploadingIndicator(lightGreenTheme),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: _state.isUploading ? null : () => Navigator.of(context).pop(),
-            child: Text('Cancel', 
-              style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
+            child: Text(
+              'Cancel', 
+              style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)
+            ),
           ),
           ElevatedButton(
             onPressed: _state.isUploading ? null : _saveMenuItem,
@@ -813,6 +541,314 @@ Future<String?> _uploadImage(File imageFile) async {
           ),
         ],
       ),
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Image Preview
+  Widget _buildImagePreview(ThemeData theme) {
+    return Container(
+      height: 150,
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.surfaceContainerHighest,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: _state.selectedImage != null
+            ? Image.file(
+                _state.selectedImage!, 
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.fastfood,
+                    color: theme.colorScheme.primary.withOpacity(0.5),
+                    size: 50,
+                  );
+                },
+              )
+            : CachedNetworkImage(
+                imageUrl: _state.imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Center(
+                  child: CircularProgressIndicator(color: theme.colorScheme.primary),
+                ),
+                errorWidget: (context, url, error) => Icon(
+                  Icons.fastfood,
+                  color: theme.colorScheme.primary.withOpacity(0.5),
+                  size: 50,
+                ),
+              ),
+      ),
+    ).animate().fadeIn().scale();
+  }
+
+  // ✅ EXTRACTED WIDGET: Text Field
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required ThemeData theme,
+    int maxLines = 1,
+    String? prefixText,
+    TextInputType? keyboardType,
+  }) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: theme.colorScheme.onSurface),
+        prefixText: prefixText,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.colorScheme.primary.withOpacity(0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+        ),
+      ),
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Special Offer Section
+  Widget _buildSpecialOfferSection(ThemeData theme) {
+    return Row(
+      children: [
+        Expanded(
+          child: CheckboxListTile(
+            title: Text(
+              'Special Offer',
+              style: TextStyle(color: theme.colorScheme.onSurface),
+            ),
+            value: _state.hasSpecialOffer,
+            onChanged: (value) {
+              _updateState(_state.copyWith(hasSpecialOffer: value ?? false));
+            },
+            activeColor: theme.colorScheme.primary,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        if (_state.hasSpecialOffer)
+          Expanded(
+            child: _buildTextField(
+              controller: _state.specialOfferController,
+              label: 'Offer Price',
+              theme: theme,
+              prefixText: '₹',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Category Dropdown
+  Widget _buildCategoryDropdown(ThemeData theme) {
+    return DropdownButtonFormField<String>(
+      value: _state.selectedCategory,
+      decoration: InputDecoration(
+        labelText: 'Category',
+        labelStyle: TextStyle(color: theme.colorScheme.onSurface),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.colorScheme.primary.withOpacity(0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+        ),
+      ),
+      items: _categories.map((category) {
+        final categoryColors = getCategoryColor(category);
+        return DropdownMenuItem(
+          value: category,
+          child: Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: categoryColors['color'],
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(getCategoryDisplayName(category)),
+            ],
+          ),
+        );
+      }).toList(),
+      onChanged: (value) {
+        if (value != null) {
+          _updateState(_state.copyWith(selectedCategory: value));
+        }
+      },
+      dropdownColor: theme.colorScheme.surfaceVariant,
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Category Preview
+  Widget _buildCategoryPreview(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Category Preview: ', 
+            style: TextStyle(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          _buildCategoryPreviewTag(_state.selectedCategory),
+        ],
+      ),
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Vegetarian Selection (FIXED)
+  Widget _buildVegetarianSelection(ThemeData theme) {
+    return Row(
+      children: [
+        Expanded(
+          child: FilterChip(
+            label: Text(
+              'Vegetarian',
+              style: TextStyle(
+                color: _state.isVegetarian ? Colors.white : theme.colorScheme.onSurface,
+              ),
+            ),
+            selected: _state.isVegetarian,
+            onSelected: (value) => _toggleVegetarian(true), // ✅ Fixed: Always set to true for vegetarian
+            backgroundColor: theme.colorScheme.surfaceVariant,
+            selectedColor: Colors.green,
+            checkmarkColor: Colors.white,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: FilterChip(
+            label: Text(
+              'Non-Vegetarian',
+              style: TextStyle(
+                color: !_state.isVegetarian ? Colors.white : theme.colorScheme.onSurface,
+              ),
+            ),
+            selected: !_state.isVegetarian,
+            onSelected: (value) => _toggleVegetarian(false), // ✅ Fixed: Always set to false for non-vegetarian
+            backgroundColor: theme.colorScheme.surfaceVariant,
+            selectedColor: Colors.red,
+            checkmarkColor: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Additional Options
+  Widget _buildAdditionalOptions(ThemeData theme) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilterChip(
+          label: Text(
+            'Vegan',
+            style: TextStyle(
+              color: _state.isVegan ? Colors.white : theme.colorScheme.onSurface,
+            ),
+          ),
+          selected: _state.isVegan,
+          onSelected: _state.isVegetarian ? (value) {
+            _updateState(_state.copyWith(isVegan: value));
+          } : null, // Disable vegan if non-vegetarian
+          backgroundColor: theme.colorScheme.surfaceVariant,
+          selectedColor: Colors.lightGreen[700],
+          checkmarkColor: Colors.white,
+        ),
+        FilterChip(
+          label: Text(
+            'Spicy',
+            style: TextStyle(
+              color: _state.isSpicy ? Colors.white : theme.colorScheme.onSurface,
+            ),
+          ),
+          selected: _state.isSpicy,
+          onSelected: (value) {
+            _updateState(_state.copyWith(isSpicy: value));
+          },
+          backgroundColor: theme.colorScheme.surfaceVariant,
+          selectedColor: Colors.orange[700],
+          checkmarkColor: Colors.white,
+        ),
+        CheckboxListTile(
+          title: Text(
+            'Today\'s Special',
+            style: TextStyle(color: theme.colorScheme.onSurface),
+          ),
+          value: _state.isTodaysSpecial,
+          onChanged: (value) {
+            _updateState(_state.copyWith(isTodaysSpecial: value ?? false));
+          },
+          activeColor: Colors.purple[700],
+          contentPadding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Image Upload Button
+  Widget _buildImageUploadButton(ThemeData theme) {
+    return ElevatedButton.icon(
+      onPressed: _state.isUploading ? null : () async {
+        final picker = ImagePicker();
+        final pickedFile = await picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 80,
+          maxWidth: 1024,
+          maxHeight: 1024,
+        );
+        if (pickedFile != null && mounted) {
+          _updateState(_state.copyWith(
+            selectedImage: File(pickedFile.path),
+            imageUrl: _state.selectedImage != null ? '' : _state.imageUrl,
+          ));
+        }
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: Colors.white,
+      ),
+      icon: const Icon(Icons.image),
+      label: Text(_state.selectedImage != null || _state.imageUrl.isNotEmpty 
+          ? 'Change Image' : 'Add Image'),
+    );
+  }
+
+  // ✅ EXTRACTED WIDGET: Uploading Indicator
+  Widget _buildUploadingIndicator(ThemeData theme) {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator()),
+            const SizedBox(width: 12),
+            Text(
+              'Uploading image...', 
+              style: TextStyle(color: theme.colorScheme.onSurface),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -854,6 +890,7 @@ Future<String?> _uploadImage(File imageFile) async {
   }
 }
 
+// Optimized dialog functions
 void showAddItemDialog(BuildContext context, WidgetRef ref, String restaurantId) {
   showDialog(
     context: context,
@@ -884,16 +921,22 @@ void showDeleteItemDialog(BuildContext context, WidgetRef ref, MenuItemModel ite
     builder: (context) => Theme(
       data: lightGreenTheme,
       child: AlertDialog(
-        title: const Text('Delete Menu Item',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Delete Menu Item',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: lightGreenTheme.colorScheme.surface,
-        content: Text('Are you sure you want to delete "${item.name}"?',
-          style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
+        content: Text(
+          'Are you sure you want to delete "${item.name}"?',
+          style: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel', 
-              style: TextStyle(color: lightGreenTheme.colorScheme.onSurface)),
+            child: Text(
+              'Cancel', 
+              style: TextStyle(color: lightGreenTheme.colorScheme.onSurface),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -907,9 +950,7 @@ void showDeleteItemDialog(BuildContext context, WidgetRef ref, MenuItemModel ite
                       content: const Text('Menu item deleted successfully!'),
                       backgroundColor: Colors.lightGreen[700],
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   );
                 }
@@ -920,9 +961,7 @@ void showDeleteItemDialog(BuildContext context, WidgetRef ref, MenuItemModel ite
                       content: Text('Error deleting item: $e'),
                       backgroundColor: Colors.red,
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   );
                 }

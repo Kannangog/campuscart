@@ -1,14 +1,15 @@
 // ignore_for_file: deprecated_member_use, non_constant_identifier_names
 
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/menu_item_rating_provider.dart';
-import '../../providers/auth_provider.dart'; // Add your auth provider
+import '../../providers/auth_provider.dart';
 import '../../models/menu_item_model.dart';
 import '../../models/menu_item_rating_model.dart';
+import '../../models/restaurant_model.dart';
 
 class FoodDetailScreen extends ConsumerStatefulWidget {
   final MenuItemModel menuItem;
@@ -24,6 +25,26 @@ class FoodDetailScreen extends ConsumerStatefulWidget {
 
 class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
   int _quantity = 1;
+  RestaurantModel? _restaurant;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRestaurantData();
+  }
+
+  void _loadRestaurantData() async {
+    try {
+      final restaurant = await ref.read(restaurantProvider(widget.menuItem.restaurantId).future);
+      if (mounted) {
+        setState(() {
+          _restaurant = restaurant;
+        });
+      }
+    } catch (e) {
+      print('Error loading restaurant data: $e');
+    }
+  }
 
   void _incrementQuantity() {
     setState(() {
@@ -42,7 +63,7 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
   // Helper method to get current user ID
   String? _getCurrentUserId() {
     final authState = ref.read(authProvider);
-    return authState.value?.id;
+    return authState.value?.uid;
   }
 
   @override
@@ -126,74 +147,120 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Restaurant Information Card
+                  if (_restaurant != null) _buildRestaurantCard(),
+                  const SizedBox(height: 20),
+
                   // User Rating Section (if exists and user is logged in)
                   if (userId != null && userRating != null) 
                     _buildUserRatingSection(userRating),
                   
-                  // Rating and Veg/Non-Veg badge
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: widget.menuItem.isVegan ? Colors.green : Colors.red,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          widget.menuItem.isVegan ? 'VEG' : 'NON-VEG',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Row(
+                  // Food Details Card
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 20),
-                          const SizedBox(width: 4),
+                          // Food Name and Price
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.menuItem.name,
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '₹${widget.menuItem.price.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Rating and Veg/Non-Veg badge
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: widget.menuItem.isVegan ? Colors.green : Colors.red,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  widget.menuItem.isVegan ? 'VEG' : 'NON-VEG',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Row(
+                                children: [
+                                  const Icon(Icons.star, color: Colors.amber, size: 20),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    averageRating.toStringAsFixed(1),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '($reviewCount ${reviewCount == 1 ? 'review' : 'reviews'})',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          // Description
                           Text(
-                            averageRating.toStringAsFixed(1),
-                            style: const TextStyle(
+                            'Description',
+                            style: TextStyle(
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              color: Colors.grey[800],
                             ),
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(height: 8),
                           Text(
-                            '($reviewCount ${reviewCount == 1 ? 'review' : 'reviews'})',
+                            widget.menuItem.description.isNotEmpty 
+                                ? widget.menuItem.description 
+                                : 'A delicious ${widget.menuItem.name} prepared with fresh ingredients and authentic flavors.',
                             style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
+                              color: Colors.grey[700],
+                              fontSize: 15,
+                              height: 1.5,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Description
-                  Text(
-                    'Description',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800],
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.menuItem.description.isNotEmpty 
-                        ? widget.menuItem.description 
-                        : 'A delicious ${widget.menuItem.name} prepared with fresh ingredients and authentic flavors.',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 15,
-                      height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
                   // Quantity Selector
                   _buildQuantitySelector(),
@@ -208,6 +275,235 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
                   const SizedBox(height: 20),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRestaurantCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            // Restaurant Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: CachedNetworkImage(
+                imageUrl: _restaurant!.imageUrl,
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => Container(
+                  width: 60,
+                  height: 60,
+                  color: Colors.grey[300],
+                  child: const Icon(Icons.restaurant, color: Colors.grey),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            
+            // Restaurant Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'From ${_restaurant!.name}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _restaurant!.description,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, size: 16, color: Colors.amber),
+                      const SizedBox(width: 4),
+                      Text(
+                        _restaurant!.rating.toStringAsFixed(1),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.schedule, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${_restaurant!.estimatedDeliveryTime} min',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.delivery_dining, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        _restaurant!.deliveryFee == 0 ? 'Free' : '₹${_restaurant!.deliveryFee}',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // View Restaurant Button
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios, size: 16),
+              onPressed: () {
+                // Navigate to restaurant details
+                _showRestaurantDetails(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRestaurantDetails(BuildContext context) {
+    if (_restaurant == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 60,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Restaurant Header
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: _restaurant!.imageUrl,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorWidget: (context, url, error) => Container(
+                      width: 80,
+                      height: 80,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.restaurant, color: Colors.grey),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _restaurant!.name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.star, size: 16, color: Colors.amber),
+                          const SizedBox(width: 4),
+                          Text(_restaurant!.rating.toStringAsFixed(1)),
+                          const SizedBox(width: 8),
+                          Text(
+                            '(${_restaurant!.reviewCount} reviews)',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _restaurant!.categories.join(', '),
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Restaurant Details
+            _buildRestaurantDetailItem(Icons.location_on, 'Address', _restaurant!.address),
+            _buildRestaurantDetailItem(Icons.phone, 'Phone', _restaurant!.phoneNumber),
+            _buildRestaurantDetailItem(Icons.schedule, 'Delivery Time', '${_restaurant!.estimatedDeliveryTime} minutes'),
+            _buildRestaurantDetailItem(Icons.delivery_dining, 'Delivery Fee', 
+                _restaurant!.deliveryFee == 0 ? 'Free delivery' : '₹${_restaurant!.deliveryFee.toStringAsFixed(2)}'),
+            _buildRestaurantDetailItem(Icons.shopping_bag, 'Minimum Order', 
+                _restaurant!.minimumOrder == 0 ? 'No minimum' : '₹${_restaurant!.minimumOrder.toStringAsFixed(2)}'),
+            
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Navigate to full restaurant screen
+                },
+                child: const Text('View Full Restaurant Details'),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRestaurantDetailItem(IconData icon, String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.grey[600]),
+              textAlign: TextAlign.right,
             ),
           ),
         ],
@@ -384,7 +680,7 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
             ref.read(cartProvider.notifier).addItem(
               widget.menuItem, 
               widget.menuItem.restaurantId, 
-              widget.menuItem.restaurantName
+              _restaurant?.name ?? widget.menuItem.restaurantName
             );
           }
           
@@ -395,6 +691,7 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              backgroundColor: Colors.green,
               action: SnackBarAction(
                 label: 'View Cart',
                 textColor: Colors.white,
@@ -437,10 +734,11 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
           children: [
             Text(
               'Customer Reviews',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
             ),
             // Only show Add Review button if user is logged in and hasn't rated yet
             if (userId != null && userRating == null)
@@ -748,6 +1046,12 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
   }
 }
 
-extension on User? {
-  String? get id => null;
-}
+// Add this provider if not exists
+final restaurantProvider = FutureProvider.family<RestaurantModel, String>((ref, restaurantId) async {
+  final doc = await FirebaseFirestore.instance.collection('restaurants').doc(restaurantId).get();
+  if (doc.exists) {
+    return RestaurantModel.fromFirestore(doc);
+  } else {
+    throw Exception('Restaurant not found');
+  }
+});
