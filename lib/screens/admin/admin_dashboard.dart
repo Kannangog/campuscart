@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'admin_analytics_screen.dart';
 import 'restaurant_approvals_screen.dart';
 import 'users_management_screen.dart';
-import 'admin_profile_screen.dart'; // Import the admin profile screen
+import 'admin_profile_screen.dart' hide AdminAnalyticsScreen, RestaurantApprovalsScreen, UsersManagementScreen; // Import the admin profile screen
 
 class AdminDashboard extends ConsumerStatefulWidget {
   const AdminDashboard({super.key});

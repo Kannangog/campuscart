@@ -729,9 +729,285 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     return _googleSignIn.currentUser;
   }
 
-  Future<void> approveRestaurant(String id) async {}
+  // ✅ COMPLETED: Restaurant approval methods
+  Future<void> approveRestaurant(String restaurantId) async {
+    try {
+      await _firestore.collection('restaurants').doc(restaurantId).update({
+        'isApproved': true,
+        'updatedAt': Timestamp.now(),
+      });
+      
+      debugPrint('✅ Restaurant approved: $restaurantId');
+    } catch (e) {
+      debugPrint('❌ Error approving restaurant: $e');
+      rethrow;
+    }
+  }
 
-  Future<void> rejectRestaurant(ownerId) async {}
+  Future<void> rejectRestaurant(String restaurantId) async {
+    try {
+      await _firestore.collection('restaurants').doc(restaurantId).update({
+        'isApproved': false,
+        'rejectedAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      });
+      
+      debugPrint('❌ Restaurant rejected: $restaurantId');
+    } catch (e) {
+      debugPrint('❌ Error rejecting restaurant: $e');
+      rethrow;
+    }
+  }
 
-  Future<void> updateUserProfile({required String userId, required String name, required String phoneNumber, String? profileImageUrl}) async {}
+  // ✅ COMPLETED: Restaurant owner approval methods
+  Future<void> approveRestaurantOwner(String ownerId) async {
+    try {
+      await _firestore.collection('users').doc(ownerId).update({
+        'isApproved': true,
+        'updatedAt': Timestamp.now(),
+      });
+      
+      debugPrint('✅ Restaurant owner approved: $ownerId');
+    } catch (e) {
+      debugPrint('❌ Error approving restaurant owner: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> rejectRestaurantOwner(String ownerId) async {
+    try {
+      await _firestore.collection('users').doc(ownerId).update({
+        'isApproved': false,
+        'rejectedAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      });
+      
+      debugPrint('❌ Restaurant owner rejected: $ownerId');
+    } catch (e) {
+      debugPrint('❌ Error rejecting restaurant owner: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ COMPLETED: User profile update method
+  Future<void> updateUserProfile({
+    required String userId,
+    required String name,
+    required String phoneNumber,
+    String? profileImageUrl,
+  }) async {
+    try {
+      final updates = <String, dynamic>{
+        'name': name,
+        'phoneNumber': phoneNumber,
+        'updatedAt': Timestamp.now(),
+      };
+
+      if (profileImageUrl != null) {
+        updates['profileImageUrl'] = profileImageUrl;
+      }
+
+      await _firestore.collection('users').doc(userId).update(updates);
+      
+      debugPrint('✅ User profile updated: $userId');
+    } catch (e) {
+      debugPrint('❌ Error updating user profile: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ COMPLETED: Get pending restaurant owners
+  Future<List<UserModel>> getPendingRestaurantOwners() async {
+    try {
+      final query = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: UserRole.restaurantOwner.index)
+          .where('isApproved', isEqualTo: false)
+          .get();
+
+      return query.docs
+          .map((doc) => UserModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting pending restaurant owners: $e');
+      return [];
+    }
+  }
+
+  // ✅ COMPLETED: Get pending restaurants
+  Future<List<RestaurantModel>> getPendingRestaurants() async {
+    try {
+      final query = await _firestore
+          .collection('restaurants')
+          .where('isApproved', isEqualTo: false)
+          .get();
+
+      return query.docs
+          .map((doc) => RestaurantModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting pending restaurants: $e');
+      return [];
+    }
+  }
+
+  // ✅ COMPLETED: Get user's restaurants
+  Future<List<RestaurantModel>> getUserRestaurants(String userId) async {
+    try {
+      final query = await _firestore
+          .collection('restaurants')
+          .where('ownerId', isEqualTo: userId)
+          .get();
+
+      return query.docs
+          .map((doc) => RestaurantModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting user restaurants: $e');
+      return [];
+    }
+  }
+
+  // ✅ COMPLETED: Check if user has restaurant
+  Future<bool> userHasRestaurant(String userId) async {
+    try {
+      final query = await _firestore
+          .collection('restaurants')
+          .where('ownerId', isEqualTo: userId)
+          .limit(1)
+          .get();
+
+      return query.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking user restaurant: $e');
+      return false;
+    }
+  }
+
+  // ✅ COMPLETED: Delete user account
+  Future<void> deleteUserAccount(String userId) async {
+    try {
+      // Delete user data from Firestore
+      await _firestore.collection('users').doc(userId).delete();
+      
+      // Delete user's restaurants
+      final userRestaurants = await getUserRestaurants(userId);
+      for (final restaurant in userRestaurants) {
+        await _firestore.collection('restaurants').doc(restaurant.id).delete();
+      }
+      
+      // Delete user's FCM tokens
+      final notificationService = ref.read(notificationServiceProvider);
+      await notificationService.removeFCMToken(userId);
+      
+      // Delete auth user
+      final user = _auth.currentUser;
+      if (user != null && user.uid == userId) {
+        await user.delete();
+      }
+      
+      debugPrint('✅ User account deleted: $userId');
+    } catch (e) {
+      debugPrint('❌ Error deleting user account: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ COMPLETED: Update user's restaurant
+  Future<void> updateUserRestaurant({
+    required String restaurantId,
+    required RestaurantModel restaurant,
+  }) async {
+    try {
+      await _firestore.collection('restaurants').doc(restaurantId).update(
+        restaurant.toFirestore(),
+      );
+      
+      debugPrint('✅ Restaurant updated: $restaurantId');
+    } catch (e) {
+      debugPrint('❌ Error updating restaurant: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ COMPLETED: Create new restaurant
+  Future<void> createRestaurant({
+    required String userId,
+    required RestaurantModel restaurant,
+  }) async {
+    try {
+      final restaurantDoc = _firestore.collection('restaurants').doc();
+      final restaurantWithId = restaurant.copyWith(
+        id: restaurantDoc.id,
+        ownerId: userId,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      
+      await restaurantDoc.set(restaurantWithId.toFirestore());
+      
+      debugPrint('✅ Restaurant created: ${restaurantDoc.id}');
+    } catch (e) {
+      debugPrint('❌ Error creating restaurant: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ COMPLETED: Get all users (for admin)
+  Future<List<UserModel>> getAllUsers() async {
+    try {
+      final query = await _firestore.collection('users').get();
+      
+      return query.docs
+          .map((doc) => UserModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting all users: $e');
+      return [];
+    }
+  }
+
+  // ✅ COMPLETED: Get all restaurants (for admin)
+  Future<List<RestaurantModel>> getAllRestaurants() async {
+    try {
+      final query = await _firestore.collection('restaurants').get();
+      
+      return query.docs
+          .map((doc) => RestaurantModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting all restaurants: $e');
+      return [];
+    }
+  }
+
+  // ✅ COMPLETED: Toggle user approval status
+  Future<void> toggleUserApproval(String userId, bool isApproved) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'isApproved': isApproved,
+        'updatedAt': Timestamp.now(),
+      });
+      
+      debugPrint('✅ User approval toggled: $userId -> $isApproved');
+    } catch (e) {
+      debugPrint('❌ Error toggling user approval: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ COMPLETED: Toggle restaurant approval status
+  Future<void> toggleRestaurantApproval(String restaurantId, bool isApproved) async {
+    try {
+      await _firestore.collection('restaurants').doc(restaurantId).update({
+        'isApproved': isApproved,
+        'updatedAt': Timestamp.now(),
+      });
+      
+      debugPrint('✅ Restaurant approval toggled: $restaurantId -> $isApproved');
+    } catch (e) {
+      debugPrint('❌ Error toggling restaurant approval: $e');
+      rethrow;
+    }
+  }
 }
